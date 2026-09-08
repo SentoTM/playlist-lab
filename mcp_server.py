@@ -63,6 +63,7 @@ def status() -> dict:
         "spotify_configured": bool(os.getenv("SPOTIFY_CLIENT_ID")),
         "spotify_session": user,
         "lastfm": bool(lf), "statsfm": bool(sf),
+        "warnings": sf.privacy_warnings() if sf else [],
     }
 
 

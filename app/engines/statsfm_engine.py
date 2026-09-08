@@ -40,10 +40,13 @@ def generate(sf: StatsfmClient, sp: SpotifyClient,
     top_artists = sf.top_artists("lifetime", 12)
     max_a = max((a["streams"] for a in top_artists), default=1) or 1
     for a in top_artists:
-        found = sp.search_artist(a["name"], limit=1)
-        if not found:
-            continue
-        for t in sp.artist_top_tracks(found[0]["id"]):
+        artist_id = a.get("spotify_id")
+        if not artist_id:  # stats.fm suele traer el id; si no, buscamos por nombre
+            found = sp.search_artist(a["name"], limit=1)
+            if not found:
+                continue
+            artist_id = found[0]["id"]
+        for t in sp.artist_top_tracks(artist_id):
             ta = t["artists"][0]["name"] if t.get("artists") else a["name"]
             k = track_key(ta, t.get("name", ""))
             if k in lifetime_keys or k in recent_keys:

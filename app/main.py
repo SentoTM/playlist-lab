@@ -69,6 +69,7 @@ def status():
         "spotify_user": user,
         "lastfm_enabled": lf is not None,
         "statsfm_enabled": sf is not None,
+        "warnings": sf.privacy_warnings() if sf else [],
     }
 
 

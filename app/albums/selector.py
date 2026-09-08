@@ -79,8 +79,10 @@ class TasteProfile:
                     self.top_artist_names.append(a["name"])
 
         if sf:
-            for a in sf.top_artists("lifetime", 200):
+            for i, a in enumerate(sf.top_artists("lifetime", 200)):
                 self.known_artists.add(norm(a["name"]))
+                if i < 50:  # géneros de tu historial completo, no solo del reciente
+                    genres.extend(a.get("genres", []))
 
         self.families = profile_families(genres)
 

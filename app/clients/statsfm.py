@@ -4,6 +4,11 @@ stats.fm NO tiene API pública oficial; esto usa su API interna
 (api.stats.fm), que funciona sin autenticación para perfiles públicos.
 Puede romperse si stats.fm cambia su API — todos los métodos devuelven
 listas vacías en caso de fallo en vez de tumbar la app.
+
+Validado contra la API real (sep. 2026): /users/{u} devuelve el perfil con
+`privacySettings`; /users/{u}/top/{tracks,artists}?range=lifetime&limit=N
+respeta límites altos (200) y trae ids de Spotify y géneros de los artistas.
+`range` admite 'weeks' | 'months' | 'lifetime'.
 """
 import httpx
 
@@ -26,7 +31,26 @@ class StatsfmClient:
             return None
 
     def available(self) -> bool:
-        return self._get(f"/users/{self.username}") is not None
+        return self.profile() is not None
+
+    def profile(self) -> dict | None:
+        """Perfil público del usuario (o None si no existe / no hay red)."""
+        data = self._get(f"/users/{self.username}")
+        return (data or {}).get("item") if data else None
+
+    def privacy_warnings(self) -> list[str]:
+        """Avisos si el perfil oculta lo que necesitan los motores."""
+        prof = self.profile()
+        if prof is None:
+            return [f"stats.fm: no se encuentra el usuario '{self.username}' "
+                    "(o no hay red)."]
+        priv = prof.get("privacySettings") or {}
+        out = []
+        for key, label in (("topTracks", "top tracks"), ("topArtists", "top artists")):
+            if priv.get(key) is False:
+                out.append(f"stats.fm: tus {label} no son públicos; actívalos en "
+                           "Settings → Privacy para que este motor funcione.")
+        return out
 
     def top_tracks(self, range_: str = "lifetime", limit: int = 100) -> list[dict]:
         """Top tracks del historial ('weeks' | 'months' | 'lifetime').
@@ -52,6 +76,7 @@ class StatsfmClient:
         return [t for t in out if t["name"]]
 
     def top_artists(self, range_: str = "lifetime", limit: int = 50) -> list[dict]:
+        """Top artistas. Devuelve [{'name', 'streams', 'spotify_id', 'genres'}]."""
         data = self._get(f"/users/{self.username}/top/artists",
                          range=range_, limit=limit)
         if not data:
@@ -59,8 +84,12 @@ class StatsfmClient:
         out = []
         for item in data.get("items", []):
             artist = item.get("artist") or {}
+            ext = artist.get("externalIds") or {}
+            spotify_ids = ext.get("spotify") or []
             out.append({
                 "name": artist.get("name", ""),
                 "streams": item.get("streams") or 0,
+                "spotify_id": spotify_ids[0] if spotify_ids else None,
+                "genres": list(artist.get("genres") or []),
             })
         return [a for a in out if a["name"]]
