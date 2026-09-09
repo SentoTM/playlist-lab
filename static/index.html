@@ -207,7 +207,12 @@ async function generate() {
       }),
     });
     tracks = data.tracks;
-    if (data.warnings.length) $("warnings").innerHTML = data.warnings.map(w => `<div class="warn">⚠ ${w}</div>`).join("");
+    let html = data.warnings.map(w => `<div class="warn">⚠ ${w}</div>`).join("");
+    if (data.stats) {
+      const parts = Object.entries(data.stats).map(([e, s]) => `${e}: ${s.elegidas} de ${s.candidatos} candidatos`);
+      html += `<div class="muted" style="font-size:12px;margin-top:6px">Reparto — ${parts.join(" · ")}</div>`;
+    }
+    $("warnings").innerHTML = html;
     $("preview-card").hidden = false;
     if (!$("plName").value) $("plName").value = "Playlist Lab — " + new Date().toLocaleDateString("es-ES");
     render();

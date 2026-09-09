@@ -11,18 +11,28 @@ from ..clients.statsfm import StatsfmClient
 from .core import Candidate, from_spotify_track, track_key
 
 
+def lifetime_keys(sf: StatsfmClient, limit: int = 500) -> set[str]:
+    """Claves de todo lo que has escuchado con cierta frecuencia (para excluir)."""
+    return {track_key(t["artist"], t["name"]) for t in sf.top_tracks("lifetime", limit)}
+
+
 def generate(sf: StatsfmClient, sp: SpotifyClient,
              recent_keys: set[str],
-             rediscover_weight: float = 0.7) -> list[Candidate]:
+             rediscover_weight: float = 0.7,
+             only_new: bool = False) -> list[Candidate]:
+    """only_new=True desactiva el redescubrimiento (por definición no es nuevo)
+    y deja solo los temas aún no escuchados de tus artistas históricos."""
     candidates: list[Candidate] = []
 
     lifetime = sf.top_tracks("lifetime", 150)
     if not lifetime:
         return []
     max_streams = max(t["streams"] for t in lifetime) or 1
+    if only_new:
+        rediscover_weight = 0.0
 
     # 1) Redescubrimiento: top histórico que ya no suena en tu rotación actual
-    for t in lifetime:
+    for t in lifetime if rediscover_weight > 0 else []:
         k = track_key(t["artist"], t["name"])
         if k in recent_keys:
             continue
@@ -37,7 +47,7 @@ def generate(sf: StatsfmClient, sp: SpotifyClient,
 
     # 2) Profundizar en artistas históricos: temas suyos que no están en tu historial
     lifetime_keys = {track_key(t["artist"], t["name"]) for t in lifetime}
-    top_artists = sf.top_artists("lifetime", 12)
+    top_artists = sf.top_artists("lifetime", 25 if only_new else 12)
     max_a = max((a["streams"] for a in top_artists), default=1) or 1
     for a in top_artists:
         artist_id = a.get("spotify_id")

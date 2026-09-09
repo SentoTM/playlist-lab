@@ -12,7 +12,7 @@ from .clients.lastfm import LastfmClient
 from .clients.spotify import SpotifyAuthError, SpotifyClient
 from .clients.statsfm import StatsfmClient
 from .engines import lastfm_engine, profile, statsfm_engine
-from .engines.core import Candidate, blend
+from .engines.core import Candidate, blend, track_key
 from .resolve import resolve_on_spotify
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
@@ -107,6 +107,16 @@ def preview(req: PreviewRequest):
         raise HTTPException(401, "Inicia sesión con Spotify primero")
 
     known = profile.known_track_keys(sp)
+    if req.exclude_known:
+        # "nuevas para mí" de verdad: también tu historial completo y Last.fm
+        if sf:
+            known |= statsfm_engine.lifetime_keys(sf, 500)
+        if lf and lf.username:
+            try:
+                known |= {track_key(t["artist"], t["name"])
+                          for t in lf.user_top_tracks("overall", 200)}
+            except Exception:  # noqa: BLE001
+                log.warning("No se pudo leer el top de Last.fm para excluir")
     pools: dict[str, tuple[float, list[Candidate]]] = {}
     errors: list[str] = []
 
@@ -138,7 +148,8 @@ def preview(req: PreviewRequest):
         else:
             run("statsfm", lambda: statsfm_engine.generate(
                 sf, sp, recent_keys=known,
-                rediscover_weight=1.0 - req.novelty * 0.5))
+                rediscover_weight=1.0 - req.novelty * 0.5,
+                only_new=req.exclude_known))
 
     if not pools:
         raise HTTPException(400, "Ningún motor disponible. " + "; ".join(errors))
@@ -148,7 +159,12 @@ def preview(req: PreviewRequest):
                   per_artist_max=req.per_artist_max)
     resolved = resolve_on_spotify(sp, mixed)[: req.size]
 
+    stats = {e: {"candidatos": len(c), "elegidas": 0} for e, (_, c) in pools.items()}
+    for c in resolved:
+        stats[c.source.split("+")[0]]["elegidas"] += 1
+
     return {
+        "stats": stats,
         "tracks": [{
             "name": c.name, "artist": c.artist, "uri": c.spotify_uri,
             "id": c.spotify_id, "score": round(c.score, 3),

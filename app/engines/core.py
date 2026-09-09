@@ -2,7 +2,7 @@
 import random
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 
 def norm(s: str) -> str:
