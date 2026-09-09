@@ -46,7 +46,7 @@ def generate(sf: StatsfmClient, sp: SpotifyClient,
             if not found:
                 continue
             artist_id = found[0]["id"]
-        for t in sp.artist_top_tracks(artist_id):
+        for t in sp.artist_top_tracks(artist_id, artist_name=a["name"]):
             ta = t["artists"][0]["name"] if t.get("artists") else a["name"]
             k = track_key(ta, t.get("name", ""))
             if k in lifetime_keys or k in recent_keys:

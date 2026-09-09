@@ -43,7 +43,7 @@ def generate(sp: SpotifyClient, novelty: float = 0.5,
 
     for rank, artist in enumerate(artists):
         artist_w = 1.0 - rank / (len(artists) + 5)
-        for t in sp.artist_top_tracks(artist["id"]):
+        for t in sp.artist_top_tracks(artist["id"], artist_name=artist["name"]):
             a = t["artists"][0]["name"] if t.get("artists") else ""
             is_known = track_key(a, t.get("name", "")) in known
             if is_known:

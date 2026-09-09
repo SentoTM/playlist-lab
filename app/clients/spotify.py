@@ -172,8 +172,35 @@ class SpotifyClient:
         items = self._get("/me/tracks", limit=limit, offset=offset).get("items", [])
         return [i["track"] for i in items if i.get("track")]
 
-    def artist_top_tracks(self, artist_id: str, market: str = "from_token") -> list[dict]:
-        return self._get(f"/artists/{artist_id}/top-tracks", market=market).get("tracks", [])
+    _top_tracks_forbidden = False  # Spotify devuelve 403 a las apps nuevas (2026)
+
+    def artist_top_tracks(self, artist_id: str, market: str = "from_token",
+                          artist_name: str | None = None) -> list[dict]:
+        """Temas populares de un artista.
+
+        El endpoint oficial /artists/{id}/top-tracks está prohibido (403) para
+        apps nuevas en modo desarrollo; si falla, se aproxima buscando
+        `artist:"Nombre"` (la búsqueda ordena por popularidad) y filtrando por
+        id de artista para evitar homónimos.
+        """
+        if not self._top_tracks_forbidden:
+            try:
+                return self._request("GET", f"/artists/{artist_id}/top-tracks",
+                                     params={"market": market}).get("tracks", [])
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code != 403:
+                    raise
+                SpotifyClient._top_tracks_forbidden = True
+                log.warning("Spotify prohíbe /top-tracks a esta app; se usa búsqueda")
+        if not artist_name:
+            artist_name = self._get(f"/artists/{artist_id}").get("name")
+            if not artist_name:
+                return []
+        found = self.search_track(f'artist:"{artist_name}"', limit=20)
+        same = [t for t in found
+                if any(a.get("id") == artist_id for a in t.get("artists", []))]
+        same.sort(key=lambda t: t.get("popularity", 0), reverse=True)
+        return same[:10]
 
     def artist_albums(self, artist_id: str, limit: int = 20,
                       market: str = "from_token") -> list[dict]:
