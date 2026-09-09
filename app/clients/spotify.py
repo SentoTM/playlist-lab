@@ -6,6 +6,7 @@ volver a hacer login en cada arranque.
 import base64
 import hashlib
 import json
+import logging
 import os
 import secrets
 import time
@@ -27,6 +28,7 @@ SCOPES = " ".join([
 ])
 
 TOKEN_FILE = Path(__file__).resolve().parents[2] / "token.json"
+log = logging.getLogger("playlist_lab.spotify")
 
 
 class SpotifyAuthError(Exception):
@@ -138,7 +140,18 @@ class SpotifyClient:
         return {}
 
     def _get(self, path: str, **params) -> dict:
-        return self._request("GET", path, params={k: v for k, v in params.items() if v is not None})
+        """GET que degrada con gracia: un 400/404 (p. ej. artistas raros en
+        /artists/{id}/albums) devuelve {} y deja un aviso en el log, en vez de
+        tumbar toda la generación. Los errores de auth (401/403) sí se propagan."""
+        try:
+            return self._request("GET", path,
+                                 params={k: v for k, v in params.items() if v is not None})
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (400, 404):
+                log.warning("Spotify %s en %s (%s): se ignora",
+                            e.response.status_code, path, e.response.text[:120])
+                return {}
+            raise
 
     # ---------- Endpoints ----------
 
@@ -162,10 +175,11 @@ class SpotifyClient:
     def artist_top_tracks(self, artist_id: str, market: str = "from_token") -> list[dict]:
         return self._get(f"/artists/{artist_id}/top-tracks", market=market).get("tracks", [])
 
-    def artist_albums(self, artist_id: str, limit: int = 20) -> list[dict]:
+    def artist_albums(self, artist_id: str, limit: int = 20,
+                      market: str = "from_token") -> list[dict]:
         return self._get(
             f"/artists/{artist_id}/albums",
-            include_groups="album,single", limit=limit,
+            include_groups="album,single", limit=limit, market=market,
         ).get("items", [])
 
     def album_tracks(self, album_id: str, limit: int = 50) -> list[dict]:
@@ -177,7 +191,7 @@ class SpotifyClient:
 
     def album(self, album_id: str) -> dict:
         """Álbum completo, con tracks (incluye duration_ms por pista)."""
-        return self._get(f"/albums/{album_id}")
+        return self._get(f"/albums/{album_id}", market="from_token")
 
     def search_album(self, query: str, limit: int = 3) -> list[dict]:
         return self._get("/search", q=query, type="album", limit=limit).get(

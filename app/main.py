@@ -1,10 +1,11 @@
 """Playlist Lab — generador local de playlists de Spotify con varios motores."""
+import logging
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from .clients.lastfm import LastfmClient
@@ -21,6 +22,17 @@ CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID", "")
 REDIRECT_URI = f"http://127.0.0.1:{PORT}/callback"
 
 app = FastAPI(title="Playlist Lab")
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("playlist_lab")
+
+
+@app.exception_handler(Exception)
+async def _unhandled(request, exc: Exception):
+    """Que la UI muestre el error real en vez de 'Internal Server Error'."""
+    log.exception("Error no controlado en %s", request.url.path)
+    if isinstance(exc, SpotifyAuthError):
+        return JSONResponse({"detail": f"Sesión de Spotify inválida: {exc}"}, status_code=401)
+    return JSONResponse({"detail": f"{type(exc).__name__}: {exc}"}, status_code=500)
 STATIC = Path(__file__).resolve().parents[1] / "static"
 
 sp = SpotifyClient(CLIENT_ID, REDIRECT_URI) if CLIENT_ID else None
@@ -98,28 +110,35 @@ def preview(req: PreviewRequest):
     pools: dict[str, tuple[float, list[Candidate]]] = {}
     errors: list[str] = []
 
+    def run(engine: str, fn):
+        """Ejecuta un motor aislado: si falla, aviso y seguimos con el resto."""
+        try:
+            cands = fn()
+        except Exception as e:  # noqa: BLE001
+            log.exception("Motor %s falló", engine)
+            errors.append(f"Motor {engine} falló: {type(e).__name__}: {e}")
+            return
+        if cands:
+            pools[engine] = (req.engines[engine], cands)
+        else:
+            errors.append(f"El motor {engine} no devolvió candidatos")
+
     if req.engines.get("profile", 0) > 0:
-        pools["profile"] = (req.engines["profile"],
-                            profile.generate(sp, novelty=req.novelty))
+        run("profile", lambda: profile.generate(sp, novelty=req.novelty))
 
     if req.engines.get("lastfm", 0) > 0:
         if not lf:
             errors.append("Last.fm no está configurado (LASTFM_API_KEY en .env)")
         else:
-            pools["lastfm"] = (req.engines["lastfm"],
-                               lastfm_engine.generate(lf, sp))
+            run("lastfm", lambda: lastfm_engine.generate(lf, sp))
 
     if req.engines.get("statsfm", 0) > 0:
         if not sf:
             errors.append("stats.fm no está configurado (STATSFM_USERNAME en .env)")
         else:
-            cands = statsfm_engine.generate(
+            run("statsfm", lambda: statsfm_engine.generate(
                 sf, sp, recent_keys=known,
-                rediscover_weight=1.0 - req.novelty * 0.5)
-            if not cands:
-                errors.append("stats.fm no devolvió datos (¿perfil privado o API caída?)")
-            else:
-                pools["statsfm"] = (req.engines["statsfm"], cands)
+                rediscover_weight=1.0 - req.novelty * 0.5))
 
     if not pools:
         raise HTTPException(400, "Ningún motor disponible. " + "; ".join(errors))
