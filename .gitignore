@@ -3,3 +3,6 @@ token.json
 .venv/
 __pycache__/
 *.pyc
+
+# salidas de prueba
+preview_salida.txt
