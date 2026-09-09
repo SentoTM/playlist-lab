@@ -5,248 +5,102 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Playlist Lab</title>
 <style>
-  :root {
-    --bg: #121212; --panel: #1e1e1e; --panel2: #282828;
-    --text: #eaeaea; --muted: #9a9a9a; --accent: #1db954;
-    --profile: #4f9cf9; --lastfm: #d92323; --statsfm: #9b59b6;
-  }
+  :root { --bg: #121212; --panel: #1e1e1e; --panel2: #282828; --text: #eaeaea; --muted: #9a9a9a; --accent: #1db954; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-  }
-  .wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 80px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px 16px 80px; }
   header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-  h1 { font-size: 26px; margin: 0; }
-  h1 span { color: var(--accent); }
+  h1 { font-size: 26px; margin: 0; } h1 span { color: var(--accent); }
+  h2 { font-size: 17px; margin: 0 0 10px; }
   .muted { color: var(--muted); font-size: 13px; }
   .card { background: var(--panel); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
-  .engine { background: var(--panel2); border-radius: 10px; padding: 12px 14px; border-left: 4px solid var(--muted); }
-  .engine.profile { border-color: var(--profile); }
-  .engine.lastfm  { border-color: var(--lastfm); }
-  .engine.statsfm { border-color: var(--statsfm); }
-  .engine .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-  .engine .top b { font-size: 14px; }
-  .engine.disabled { opacity: .45; }
-  input[type=range] { width: 100%; accent-color: var(--accent); }
-  input[type=text], input[type=number] {
-    width: 100%; background: var(--panel2); color: var(--text);
-    border: 1px solid #3a3a3a; border-radius: 8px; padding: 9px 12px; font-size: 14px;
-  }
-  .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; }
-  .row > div { flex: 1; min-width: 140px; }
-  button {
-    background: var(--accent); color: #062b12; border: 0; border-radius: 999px;
-    padding: 11px 24px; font-size: 15px; font-weight: 700; cursor: pointer;
-  }
-  button:hover { filter: brightness(1.1); }
-  button:disabled { opacity: .4; cursor: default; }
+  button, a.btn { display: inline-block; background: var(--accent); color: #062b12; border: 0; border-radius: 999px; padding: 10px 22px; font-size: 15px; font-weight: 700; cursor: pointer; text-decoration: none; }
   button.ghost { background: transparent; color: var(--text); border: 1px solid #4a4a4a; font-weight: 500; }
-  .track { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border-bottom: 1px solid #2c2c2c; }
-  .track img { width: 44px; height: 44px; border-radius: 6px; background: var(--panel2); }
-  .track .info { flex: 1; min-width: 0; }
-  .track .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .track .why { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--panel2); white-space: nowrap; }
-  .badge.profile { color: var(--profile); } .badge.lastfm { color: var(--lastfm); } .badge.statsfm { color: var(--statsfm); }
-  .track .rm { background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 4px 8px; }
-  .track .rm:hover { color: #ff5c5c; }
-  #result a { color: var(--accent); font-weight: 700; }
-  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #444; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -3px; margin-right: 8px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
   .warn { color: #f0b429; font-size: 13px; margin-top: 8px; }
-  .checkbox { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
-  .checkbox input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .ok { color: var(--accent); }
+  .pill { display: inline-block; font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--panel2); margin: 3px 4px 3px 0; }
+  pre { background: var(--panel2); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
+  code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  ul { margin: 6px 0; padding-left: 18px; } li { margin: 2px 0; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #444; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div>
-      <h1>Playlist <span>Lab</span></h1>
-      <div class="muted">Genera playlists con tus propios sistemas de recomendación</div>
-    </div>
-    <div id="auth"><span class="spinner"></span>Comprobando…</div>
+    <div><h1>Playlist <span>Lab</span></h1><div class="muted">Centro de consulta y creación de playlists, para usar conversando</div></div>
+    <div id="auth"></div>
   </header>
 
-  <div class="card">
-    <div style="margin-bottom:10px"><b>Motores</b> <span class="muted">— el peso controla cuánto aporta cada uno a la mezcla</span></div>
-    <div class="grid">
-      <div class="engine profile" id="eng-profile">
-        <div class="top"><b>Perfil Spotify</b><span class="muted" id="w-profile-val">1.0</span></div>
-        <div class="muted" style="font-size:12px;margin-bottom:6px">Tus tops y la órbita de tus artistas</div>
-        <input type="range" id="w-profile" min="0" max="1" step="0.1" value="1">
-      </div>
-      <div class="engine lastfm" id="eng-lastfm">
-        <div class="top"><b>Last.fm similares</b><span class="muted" id="w-lastfm-val">0.8</span></div>
-        <div class="muted" style="font-size:12px;margin-bottom:6px">Expansión por canciones similares (incluye tus scrobbles fuera de Spotify)</div>
-        <input type="range" id="w-lastfm" min="0" max="1" step="0.1" value="0.8">
-      </div>
-      <div class="engine statsfm" id="eng-statsfm">
-        <div class="top"><b>stats.fm historial</b><span class="muted" id="w-statsfm-val">0.6</span></div>
-        <div class="muted" style="font-size:12px;margin-bottom:6px">Redescubrimiento desde tu historial completo</div>
-        <input type="range" id="w-statsfm" min="0" max="1" step="0.1" value="0.6">
-      </div>
-    </div>
-
-    <div class="row" style="margin-top:16px">
-      <div>
-        <label>Descubrimiento: <span id="novelty-val">50%</span></label>
-        <input type="range" id="novelty" min="0" max="1" step="0.05" value="0.5">
-      </div>
-      <div style="max-width:120px">
-        <label>Canciones</label>
-        <input type="number" id="size" min="5" max="100" value="30">
-      </div>
-      <div style="max-width:140px">
-        <label>Máx. por artista</label>
-        <input type="number" id="perArtist" min="1" max="10" value="2">
-      </div>
-      <div>
-        <label>&nbsp;</label>
-        <div class="checkbox"><input type="checkbox" id="excludeKnown"> <span>Solo canciones nuevas para mí</span></div>
-      </div>
-      <div style="max-width:180px">
-        <label>&nbsp;</label>
-        <button id="generate" disabled>Generar</button>
-      </div>
-    </div>
-    <div id="warnings"></div>
+  <div class="card" id="sources">
+    <h2>Fuentes</h2>
+    <div id="sources-body" class="muted">Cargando…</div>
   </div>
 
-  <div class="card" id="preview-card" hidden>
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <b id="preview-title">Previsualización</b>
-      <button class="ghost" id="regen">↻ Regenerar</button>
-    </div>
-    <div id="tracklist" style="margin-top:8px"></div>
-    <div class="row" style="margin-top:16px">
-      <div><label>Nombre de la playlist</label><input type="text" id="plName" value=""></div>
-      <div style="max-width:220px"><button id="createBtn">Crear en Spotify</button></div>
-    </div>
-    <div id="result" style="margin-top:10px"></div>
+  <div class="card" id="profile-card" hidden>
+    <h2>Tu perfil, tal como lo ve la IA</h2>
+    <div class="muted" style="margin-bottom:8px">Es lo que devuelve la herramienta <code>taste_profile</code>. Sirve para comprobar que los datos son correctos.</div>
+    <button class="ghost" id="loadProfile">Cargar perfil</button>
+    <div id="profile"></div>
+  </div>
+
+  <div class="card">
+    <h2>Cómo se usa</h2>
+    <p class="muted">Esta web solo sirve para iniciar sesión en Spotify y comprobar que todo funciona. Las playlists se crean hablando con Claude (o ChatGPT) a través del servidor MCP, que sabe consultar tu perfil, comprobar qué conoces, buscar en Spotify y crear la playlist.</p>
+    <p>Configuración en Claude Desktop (Ajustes → Desarrollador → Editar configuración):</p>
+    <pre id="mcp-config">…</pre>
+    <p class="muted">Después reinicia Claude Desktop y pídele por ejemplo: <i>«Hazme una playlist de 5 discos de post-punk actual que no conozca»</i> o usa el prompt <code>curar_playlist</code>.</p>
   </div>
 </div>
 
 <script>
-let tracks = [];
 const $ = id => document.getElementById(id);
-
-for (const k of ["profile", "lastfm", "statsfm"]) {
-  $("w-" + k).addEventListener("input", e => $("w-" + k + "-val").textContent = (+e.target.value).toFixed(1));
-}
-$("novelty").addEventListener("input", e => $("novelty-val").textContent = Math.round(e.target.value * 100) + "%");
-
 async function api(path, opts) {
   const r = await fetch(path, opts);
-  if (!r.ok) {
-    let msg = r.statusText;
-    try { msg = (await r.json()).detail || msg; } catch {}
-    throw new Error(msg);
-  }
+  if (!r.ok) { let msg = r.statusText; try { msg = (await r.json()).detail || msg; } catch {} throw new Error(msg); }
   return r.json();
 }
+function esc(s) { return String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 
-async function refreshStatus() {
+async function loadStatus() {
   try {
     const s = await api("/api/status");
-    if (!s.spotify_configured) {
-      $("auth").innerHTML = '<span class="warn">Falta SPOTIFY_CLIENT_ID en .env</span>';
-      return;
-    }
-    if (s.spotify_user) {
-      $("auth").innerHTML = `Conectado como <b>${s.spotify_user.name || s.spotify_user.id}</b> · <a href="#" id="logout" style="color:var(--muted)">salir</a>`;
-      $("logout").onclick = async e => { e.preventDefault(); await api("/api/logout", {method:"POST"}); refreshStatus(); };
-      $("generate").disabled = false;
-    } else {
-      $("auth").innerHTML = '<button id="loginBtn">Iniciar sesión con Spotify</button>';
-      $("loginBtn").onclick = () => location.href = "/login";
-    }
-    if (!s.lastfm_enabled)  { $("eng-lastfm").classList.add("disabled");  $("w-lastfm").value = 0;  $("w-lastfm-val").textContent = "sin configurar"; }
-    if (!s.statsfm_enabled) { $("eng-statsfm").classList.add("disabled"); $("w-statsfm").value = 0; $("w-statsfm-val").textContent = "sin configurar"; }
-  } catch (e) {
-    $("auth").innerHTML = '<span class="warn">Error: ' + e.message + '</span>';
-  }
+    if (!s.spotify_configured) { $("auth").innerHTML = '<span class="warn">Falta SPOTIFY_CLIENT_ID en .env</span>'; }
+    else if (s.spotify_user) {
+      $("auth").innerHTML = `Conectado como <b>${esc(s.spotify_user.name || s.spotify_user.id)}</b> · <a href="#" id="logout" class="muted">salir</a>`;
+      $("logout").onclick = async e => { e.preventDefault(); await fetch("/api/logout", {method:"POST"}); location.reload(); };
+      $("profile-card").hidden = false;
+    } else { $("auth").innerHTML = '<a class="btn" href="/login">Iniciar sesión con Spotify</a>'; }
+    const src = [
+      `<span class="pill">Spotify: ${s.spotify_user ? '<span class="ok">sesión activa</span>' : 'sin sesión'}</span>`,
+      `<span class="pill">Last.fm: ${s.lastfm_enabled ? '<span class="ok">configurado</span>' : 'no configurado'}</span>`,
+      `<span class="pill">stats.fm: ${s.statsfm_enabled ? '<span class="ok">configurado</span>' : 'no configurado'}</span>`,
+    ].join("");
+    $("sources-body").innerHTML = src + (s.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("");
+    $("mcp-config").textContent = JSON.stringify(s.mcp_config, null, 2);
+  } catch (e) { $("auth").innerHTML = '<span class="warn">Error: ' + esc(e.message) + '</span>'; }
 }
 
-function render() {
-  $("preview-title").textContent = `Previsualización — ${tracks.length} canciones`;
-  $("tracklist").innerHTML = tracks.map((t, i) => `
-    <div class="track">
-      <img src="${t.image || ''}" onerror="this.style.visibility='hidden'">
-      <div class="info">
-        <div class="name">${t.name} <span class="muted">— ${t.artist}</span></div>
-        <div class="why">${t.reason || ""}</div>
-      </div>
-      <span class="badge ${t.source.split("+")[0]}">${t.source}</span>
-      <button class="rm" data-i="${i}" title="Quitar">✕</button>
-    </div>`).join("");
-  document.querySelectorAll(".rm").forEach(b =>
-    b.onclick = () => { tracks.splice(+b.dataset.i, 1); render(); });
-}
-
-async function generate() {
-  const btn = $("generate");
-  btn.disabled = true; btn.textContent = "Generando…";
-  $("warnings").innerHTML = ""; $("result").innerHTML = "";
+$("loadProfile").onclick = async () => {
+  $("profile").innerHTML = '<div class="muted"><span class="spinner"></span>Consultando Spotify, Last.fm y stats.fm…</div>';
   try {
-    const data = await api("/api/preview", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        engines: {
-          profile: +$("w-profile").value,
-          lastfm: +$("w-lastfm").value || 0,
-          statsfm: +$("w-statsfm").value || 0,
-        },
-        size: +$("size").value,
-        novelty: +$("novelty").value,
-        per_artist_max: +$("perArtist").value,
-        exclude_known: $("excludeKnown").checked,
-      }),
-    });
-    tracks = data.tracks;
-    let html = data.warnings.map(w => `<div class="warn">⚠ ${w}</div>`).join("");
-    if (data.stats) {
-      const parts = Object.entries(data.stats).map(([e, s]) => `${e}: ${s.elegidas} de ${s.candidatos} candidatos`);
-      html += `<div class="muted" style="font-size:12px;margin-top:6px">Reparto — ${parts.join(" · ")}</div>`;
+    const p = await api("/api/profile");
+    let h = `<p><b>Géneros principales:</b> ${p.generos_principales.map(g => `<span class="pill">${esc(g)}</span>`).join("")}</p>`;
+    if (p.fase_actual.length) h += `<p><b>Fase actual</b> (nuevos en el corto plazo): ${p.fase_actual.map(esc).join(", ")}</p>`;
+    h += '<div class="cols">';
+    for (const [label, d] of Object.entries(p.spotify)) {
+      h += `<div><h2>Spotify · ${esc(label)}</h2><ul>${d.artists.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${esc(a.genres.slice(0,2).join(", "))}</span></li>`).join("")}</ul></div>`;
     }
-    $("warnings").innerHTML = html;
-    $("preview-card").hidden = false;
-    if (!$("plName").value) $("plName").value = "Playlist Lab — " + new Date().toLocaleDateString("es-ES");
-    render();
-    $("preview-card").scrollIntoView({behavior: "smooth"});
-  } catch (e) {
-    $("warnings").innerHTML = `<div class="warn">⚠ ${e.message}</div>`;
-  } finally {
-    btn.disabled = false; btn.textContent = "Generar";
-  }
-}
-
-$("generate").onclick = generate;
-$("regen").onclick = generate;
-
-$("createBtn").onclick = async () => {
-  const btn = $("createBtn");
-  btn.disabled = true; btn.textContent = "Creando…";
-  try {
-    const res = await api("/api/create", {
-      method: "POST", headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        name: $("plName").value || "Playlist Lab",
-        uris: tracks.map(t => t.uri).filter(Boolean),
-      }),
-    });
-    $("result").innerHTML = `✅ Creada: <a href="${res.url}" target="_blank">${res.name}</a>`;
-  } catch (e) {
-    $("result").innerHTML = `<span class="warn">⚠ ${e.message}</span>`;
-  } finally {
-    btn.disabled = false; btn.textContent = "Crear en Spotify";
-  }
+    if (p.lastfm) h += `<div><h2>Last.fm · 3 meses</h2><ul>${p.lastfm.recientes_3_meses.slice(0, 12).map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`;
+    if (p.statsfm) h += `<div><h2>stats.fm · histórico</h2><ul>${p.statsfm.top_artistas_historico.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${a.streams}</span></li>`).join("")}</ul></div>`;
+    h += "</div>";
+    $("profile").innerHTML = h;
+  } catch (e) { $("profile").innerHTML = `<div class="warn">⚠ ${esc(e.message)}</div>`; }
 };
 
-refreshStatus();
+loadStatus();
 </script>
 </body>
 </html>

@@ -1,111 +1,69 @@
 # Playlist Lab 🎧
 
-Herramienta local para generar playlists de Spotify combinando varios sistemas de recomendación propios: tu perfil de Spotify, similares de Last.fm y tu historial completo de stats.fm.
+Centro de consulta y creación de playlists de Spotify **para usar conversando**. La app no recomienda por sí sola: reúne lo que sabe de ti (Spotify, Last.fm y stats.fm), lo expone a una IA por MCP y ejecuta lo que decidáis (buscar, verificar, crear la playlist). La curación la hace Claude o ChatGPT combinando tu perfil con su conocimiento de escenas, discografías y crítica.
 
-Tres formas de usarla:
+¿Por qué así? El endpoint oficial `/recommendations` de Spotify (y related-artists, top-tracks, audio-features…) está cerrado para apps nuevas, y las heurísticas caseras (similares de Last.fm, tops de tus artistas) tienden a devolverte lo que ya conoces. Un buen curador con tus datos delante lo hace mejor.
 
-1. **Web app** local (interfaz en el navegador)
-2. **CLI** — `python -m app.weekly week` genera las playlists de álbumes de la semana
-3. **Servidor MCP** — para usarla conversacionalmente desde Claude o (vía túnel) desde ChatGPT
+## Qué hay
 
-Corre en tu máquina, solo para ti (Development Mode de Spotify: requiere cuenta Premium y admite hasta 5 usuarios autorizados).
+- **Servidor MCP** (`mcp_server.py`) — herramientas de consulta y creación (abajo). Stdio para Claude Desktop y `--http` para ChatGPT vía túnel.
+- **Web mínima** (`app/main.py` + `static/index.html`, puerto 8888) — login OAuth PKCE de Spotify (una vez; token en `token.json`), estado de las fuentes, vista del perfil que ve la IA y el bloque de configuración del MCP listo para copiar.
+- **Clientes** (`app/clients/`) — Spotify (PKCE, degrada ante endpoints cerrados), Last.fm (API pública) y stats.fm (API interna, best-effort; validada sep. 2026).
+- `app/taste.py` — perfil de gustos y artistas conocidos. `app/library.py` — búsqueda, resolución de "Artista – Canción/Álbum" y creación.
 
-## 1. Crear la app en Spotify (una vez)
+## Puesta en marcha
 
-1. Entra en https://developer.spotify.com/dashboard con tu cuenta (Premium).
-2. **Create app** → dale un nombre (p. ej. "Playlist Lab").
-3. En **Redirect URIs** añade exactamente: `http://127.0.0.1:8888/callback`
-4. En APIs marca **Web API**. Guarda.
-5. Copia el **Client ID** de la app (no necesitas el Client Secret: usamos PKCE).
+1. Crea una app en https://developer.spotify.com/dashboard (Redirect URI exacta: `http://127.0.0.1:8888/callback`, API: Web API) y copia el **Client ID**.
+2. `cp .env.example .env` y rellena `SPOTIFY_CLIENT_ID`, y opcionalmente `LASTFM_API_KEY` + `LASTFM_USERNAME` (https://www.last.fm/api/account/create) y `STATSFM_USERNAME` (perfil público).
+3. Windows: doble clic en `setup.bat`. Otros: `python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --port 8888`.
+4. En http://127.0.0.1:8888 pulsa **Iniciar sesión con Spotify**. Ya está: el MCP reutiliza ese token (y lo refresca solo).
 
-## 2. Configurar
+Requiere Python 3.11+ y cuenta de Spotify Premium (Development Mode).
 
-```bash
-cd playlist-lab
-python3 -m venv .venv && source .venv/bin/activate   # en Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env
-```
+## Conectarlo a Claude Desktop
 
-Edita `.env`:
-
-- `SPOTIFY_CLIENT_ID` — obligatorio (paso 1).
-- `LASTFM_API_KEY` + `LASTFM_USERNAME` — opcional; API key gratuita en https://www.last.fm/api/account/create (basta rellenar nombre y descripción; la key sale al instante).
-- `STATSFM_USERNAME` — opcional; tu usuario de stats.fm **con perfil público**. Ojo: stats.fm no tiene API oficial, así que este motor es "best effort" y puede dejar de funcionar si cambian su API interna.
-
-## 3. Ejecutar
-
-```bash
-uvicorn app.main:app --port 8888
-```
-
-Abre http://127.0.0.1:8888, pulsa **Iniciar sesión con Spotify** (solo la primera vez; el token se guarda en `token.json`) y genera.
-
-## Los motores
-
-- **Perfil Spotify** — parte de tus canciones y artistas top (corto/medio/largo plazo) y expande por los top tracks y álbumes de tus artistas. El deslizador *Descubrimiento* controla el equilibrio: 0% ≈ tus clásicos, 100% ≈ temas que no conoces de artistas que sí conoces.
-- **Last.fm similares** — toma como semillas tu top reciente de Spotify **y** tu top de Last.fm (que incluye lo que scrobbleas fuera de Spotify), pide `track.getSimilar` y agrega las puntuaciones de similitud. Los resultados se resuelven a Spotify por búsqueda.
-- **stats.fm historial** — usa tu top *lifetime*: propone redescubrimientos (favoritos históricos que ya no escuchas) y temas aún no escuchados de tus artistas con más streams.
-
-La mezcla normaliza las puntuaciones de cada motor, las pondera con los pesos que elijas, suma cuando varios motores coinciden en la misma canción, y hace un muestreo ponderado con tope de canciones por artista — cada "Regenerar" da una variación distinta.
-
-## Playlists diarias de álbumes (lunes a viernes)
-
-Cada día laborable, una playlist con **5 álbumes** (máx. ~70 min cada uno):
-
-| Categoría | Qué es |
-|---|---|
-| 🆕 Moderno similar | Últimos 5 años, artista similar a tus gustos que **no** conoces |
-| 🕰 Clásico similar | Lo mismo pero anterior a 2000 |
-| ↔️ Género adyacente | Cualquier época, género vecino al tuyo (rock/punk → metal, blues…) |
-| 🎲 Sorpresa lejana | Género alejado de tu perfil: jazz, electrónica, pop… |
-| ⭐ Imprescindible | Un clásico unánime de cualquier género (lista editable en `app/albums/essentials.py`) |
-
-El filtro de "no conocido" usa tus artistas de Spotify + Last.fm + stats.fm. La selección es determinista por fecha (misma fecha → mismos álbumes) y el parámetro `--variant` da otra tirada. Dentro de una semana no se repiten álbumes ni, dentro de un día, artistas.
-
-```bash
-python -m app.weekly preview                # los 5 álbumes de hoy, sin crear nada
-python -m app.weekly today                  # crea la playlist de hoy
-python -m app.weekly week                   # crea las 5 playlists de la próxima semana
-python -m app.weekly week --start 2026-09-14 --dry-run
-```
-
-Requiere Last.fm configurado (las categorías por similitud y género salen de ahí) y haber hecho login una vez en la web app.
-
-## Servidor MCP (usarla hablando con Claude o ChatGPT)
-
-El servidor expone estas herramientas: `status`, `preview_day_albums`, `create_day_playlist`, `generate_week` y `custom_playlist` (la mezcla de motores de la web, por conversación).
-
-### Claude Desktop
-
-Añade a tu `claude_desktop_config.json` (Ajustes → Desarrollador → Editar configuración):
+Ajustes → Desarrollador → Editar configuración, y pega el bloque que muestra la web (rutas ya rellenas). En general:
 
 ```json
 {
   "mcpServers": {
     "playlist-lab": {
-      "command": "/RUTA/A/playlist-lab/.venv/bin/python",
-      "args": ["/RUTA/A/playlist-lab/mcp_server.py"]
+      "command": "D:\\ruta\\playlist_lab\\.venv\\Scripts\\python.exe",
+      "args": ["D:\\ruta\\playlist_lab\\mcp_server.py"]
     }
   }
 }
 ```
 
-Reinicia Claude Desktop y pídele por ejemplo: *"enséñame los álbumes de hoy"* o *"genera las playlists de la semana que viene"*. Además, con el MCP registrado en Claude Desktop, las sesiones de Cowork vinculadas a tu ordenador también pueden usar estas herramientas.
+Reinicia Claude Desktop. Con el MCP registrado, las sesiones de Cowork vinculadas a tu ordenador también pueden usarlo.
 
-### ChatGPT (opcional, requiere túnel)
+## Conectarlo a ChatGPT (opcional, túnel)
 
-ChatGPT solo acepta conectores MCP **remotos** (una URL pública). Para probarlo:
+ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server.py --http`) sirve el MCP en `http://127.0.0.1:8877/mcp`; expónlo con `cloudflared tunnel --url http://127.0.0.1:8877` o `ngrok http 8877` y añade la URL pública + `/mcp` en Settings → Connectors → Developer mode. El túnel expone el servidor mientras esté abierto (quien tenga la URL podría crear playlists en tu cuenta): úsalo puntualmente.
 
-```bash
-python mcp_server.py --http        # sirve MCP en http://127.0.0.1:8877/mcp
-cloudflared tunnel --url http://127.0.0.1:8877   # o ngrok http 8877
-```
+## Herramientas MCP
 
-En ChatGPT: Settings → Connectors → Advanced → Developer mode → añade la URL pública del túnel + `/mcp`. Ten en cuenta que un túnel expone el servidor a internet mientras esté abierto: úsalo puntualmente y ciérralo después, porque quien tenga la URL podría crear playlists en tu cuenta.
+| Consulta | |
+|---|---|
+| `status` | fuentes configuradas, sesión, avisos |
+| `taste_profile` | tops por periodo con géneros, Last.fm reciente, histórico stats.fm, `fase_actual`, `generos_principales` |
+| `listening_history` | tops en bruto por fuente/rango, paginable |
+| `check_known` | si ya conoces a unos artistas y con qué evidencia (Spotify/Last.fm/stats.fm) |
+| `similar_artists` | similares según Last.fm, filtrando conocidos |
+| `search` | búsqueda en Spotify (álbum/canción/artista, con filtros `year:`, `genre:`) |
+| `album_info` | año, duración y pistas de un álbum |
+
+| Creación | |
+|---|---|
+| `resolve` | verifica una propuesta ("Artista – Canción" / "Artista – Álbum") sin crear nada |
+| `create_playlist` | crea la playlist con canciones y/o álbumes completos; informa de lo no encontrado |
+
+Y el prompt `curar_playlist`, con el método: leer el perfil → proponer como un crítico (no como un algoritmo) → filtrar conocidos → verificar en Spotify → presentar y confirmar → crear.
+
+Ejemplos de encargos: *«5 discos de post-punk actual que no conozca, máximo 70 min cada uno»*, *«una playlist de rock español de los 90 que me falte, vista mi fase Vetusta/Sidonie»*, *«algo lejano a lo mío pero que un fan de IDLES pueda disfrutar»*.
 
 ## Notas
 
-- El endpoint oficial `/recommendations` de Spotify (y audio-features, related-artists…) está deprecado para apps nuevas desde nov. 2024; por eso los motores son propios.
-- `token.json` contiene tu token de acceso: no lo compartas ni lo subas a git (ya está en `.gitignore`).
-- Para añadir un motor nuevo: crea un módulo en `app/engines/` que devuelva `list[Candidate]` y engánchalo en `app/main.py` (`/api/preview`) y en la UI.
+- `token.json` y `.env` contienen credenciales: están en `.gitignore`.
+- Los clientes externos degradan con gracia (listas vacías + aviso) en vez de tumbar la app. Spotify devuelve 403 en `/artists/{id}/top-tracks` a las apps nuevas; el cliente lo aproxima con búsqueda.
+- `scripts/diag_statsfm.py` diagnostica la API de stats.fm si deja de funcionar.

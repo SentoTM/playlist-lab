@@ -17,8 +17,8 @@ pip install -q -r requirements.txt || (pause & exit /b 1)
 
 echo.
 echo Arrancando la web en http://127.0.0.1:8888 ...
-echo Pulsa "Iniciar sesion con Spotify" en el navegador y autoriza (solo la primera vez).
-echo Deja esta ventana abierta mientras uses la app. Ctrl+C para parar.
+echo Solo hace falta para iniciar sesion en Spotify (una vez) y revisar tu perfil.
+echo Las playlists se crean hablando con Claude/ChatGPT (servidor MCP). Ctrl+C para parar.
 echo.
 start "" http://127.0.0.1:8888
 uvicorn app.main:app --port 8888
