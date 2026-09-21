@@ -33,7 +33,7 @@ class MusicbrainzClient:
             if resp.status_code != 200:
                 return {}
             return resp.json()
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ValueError):
             return {}
 
     def find_artist(self, name: str) -> dict | None:

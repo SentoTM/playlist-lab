@@ -43,7 +43,11 @@ def orbit_artists(sp: SpotifyClient, lf: LastfmClient | None,
     neighbours: list[str] = []
     if lf:
         def sims(name: str) -> list[str]:
-            return [s["name"] for s in lf.similar_artists(name, per_artist)]
+            try:
+                return [s["name"] for s in lf.similar_artists(name, per_artist)]
+            except Exception as e:  # noqa: BLE001
+                log.warning("Similares de %s fallaron: %s", name, e)
+                return []
         with ThreadPoolExecutor(max_workers=4) as pool:
             for batch in pool.map(sims, mine[:depth]):
                 for n in batch:
@@ -74,16 +78,22 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
     warnings = []
 
     def recent_for(name: str) -> list[dict]:
-        # sin `artist_name`: el endpoint ya devuelve lo más nuevo primero y
-        # completar con búsqueda dispararía el número de llamadas (el puente
-        # MCP corta al minuto).
-        found = sp.search_artist(name, limit=1)
-        if not found:
+        """Discos recientes de un artista. Un fallo suyo no tumba la tanda.
+
+        Sin `artist_name` a propósito: el endpoint ya devuelve lo más nuevo
+        primero y completar con búsqueda dispararía el número de peticiones.
+        """
+        try:
+            found = sp.search_artist(name, limit=1)
+            if not found:
+                return []
+            albums = sp.artist_albums(found[0]["id"], limit=10)
+            return [a for a in albums
+                    if (a.get("release_date") or "") >= cutoff
+                    and a.get("album_type") in ("album", "single")]
+        except Exception as e:  # noqa: BLE001
+            log.warning("Discos recientes de %s fallaron: %s", name, e)
             return []
-        albums = sp.artist_albums(found[0]["id"], limit=10)
-        return [a for a in albums
-                if (a.get("release_date") or "") >= cutoff
-                and a.get("album_type") in ("album", "single")]
 
     targets = (mine[:max_artists // 2] if include_known_artists else []) + \
               neighbours[:max_artists]

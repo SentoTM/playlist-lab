@@ -30,7 +30,10 @@ class LastfmClient:
             "method": method, "api_key": self.api_key, "format": "json", **params,
         })
         resp.raise_for_status()
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError as e:  # Last.fm devuelve HTML cuando algo va mal
+            raise RuntimeError(f"Last.fm no devolvió JSON: {e}") from e
         if "error" in data:
             raise RuntimeError(f"Last.fm error {data['error']}: {data.get('message')}")
         return data

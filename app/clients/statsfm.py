@@ -27,7 +27,7 @@ class StatsfmClient:
             if resp.status_code != 200:
                 return None
             return resp.json()
-        except httpx.HTTPError:
+        except (httpx.HTTPError, ValueError):
             return None
 
     def available(self) -> bool:

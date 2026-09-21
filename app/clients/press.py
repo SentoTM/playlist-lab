@@ -93,7 +93,7 @@ class PressClient:
                 resp = self._http.get(url)
                 resp.raise_for_status()
                 return _parse(resp.text, label)[:limit_per_source]
-            except (httpx.HTTPError, ET.ParseError) as e:
+            except (httpx.HTTPError, ET.ParseError, ValueError) as e:
                 log.warning("Feed %s falló: %s", key, e)
                 warnings.append(f"{label}: no se pudo leer ({type(e).__name__})")
                 return []
