@@ -311,6 +311,10 @@ def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
 
     Esto es lo que una búsqueda web no te da: novedades filtradas por ÉL.
     Para contexto y crítica de esas novedades, combínalo con music_press.
+
+    LENTO (medio minuto largo). Si la llamada da error por tiempo de espera,
+    vuelve a lanzarla: el servidor termina igualmente el trabajo y deja el
+    resultado en caché, así que el segundo intento es inmediato.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
@@ -417,6 +421,9 @@ def discover_emerging(genres: list[str], max_listeners: int = 150000,
     No usa los filtros de Spotify a propósito: `genre:` ya no funciona en
     búsqueda de álbumes para apps nuevas y tag:new/tag:hipster devuelven
     ruido. Cruza el resultado con music_press antes de recomendar nada.
+
+    LENTO. Si da error por tiempo de espera, vuelve a lanzarla: el trabajo
+    continúa y queda en caché, así que el segundo intento es inmediato.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)

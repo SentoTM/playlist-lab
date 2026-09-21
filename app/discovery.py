@@ -30,7 +30,7 @@ def _album_row(a: dict, why: str) -> dict:
 
 
 def orbit_artists(sp: SpotifyClient, lf: LastfmClient | None,
-                  depth: int = 12, per_artist: int = 6) -> tuple[list[str], list[str]]:
+                  depth: int = 8, per_artist: int = 5) -> tuple[list[str], list[str]]:
     """(tus artistas recientes, sus vecinos según Last.fm)."""
     mine, seen = [], set()
     for rng in ("short_term", "medium_term"):
@@ -44,7 +44,7 @@ def orbit_artists(sp: SpotifyClient, lf: LastfmClient | None,
     if lf:
         def sims(name: str) -> list[str]:
             return [s["name"] for s in lf.similar_artists(name, per_artist)]
-        with ThreadPoolExecutor(max_workers=5) as pool:
+        with ThreadPoolExecutor(max_workers=8) as pool:
             for batch in pool.map(sims, mine[:depth]):
                 for n in batch:
                     if norm(n) not in seen:
@@ -56,7 +56,7 @@ def orbit_artists(sp: SpotifyClient, lf: LastfmClient | None,
 def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient | None,
                  known: dict[str, dict], months: int = 3,
                  include_known_artists: bool = True,
-                 max_artists: int = 40) -> dict:
+                 max_artists: int = 24) -> dict:
     """Discos publicados en los últimos `months` meses dentro de tu órbita.
 
     Separa lo que es de artistas que ya escuchas ("de los tuyos") de lo que
@@ -68,17 +68,20 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
     warnings = []
 
     def recent_for(name: str) -> list[dict]:
+        # sin `artist_name`: el endpoint ya devuelve lo más nuevo primero y
+        # completar con búsqueda dispararía el número de llamadas (el puente
+        # MCP corta al minuto).
         found = sp.search_artist(name, limit=1)
         if not found:
             return []
-        albums = sp.artist_albums(found[0]["id"], limit=20, artist_name=name)
+        albums = sp.artist_albums(found[0]["id"], limit=10)
         return [a for a in albums
                 if (a.get("release_date") or "") >= cutoff
                 and a.get("album_type") in ("album", "single")]
 
     targets = (mine[:max_artists // 2] if include_known_artists else []) + \
               neighbours[:max_artists]
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=10) as pool:
         batches = list(pool.map(recent_for, targets))
 
     de_los_tuyos, alrededor, seen_albums = [], [], set()

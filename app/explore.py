@@ -136,8 +136,8 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
             vistos.add(norm(c))
             unicos.append(c)
 
-    escaneados = unicos[:max(limit * 6, 120)]
-    with ThreadPoolExecutor(max_workers=8) as pool:
+    escaneados = unicos[:max(limit * 3, 90)]
+    with ThreadPoolExecutor(max_workers=10) as pool:
         infos = list(pool.map(lf.artist_info, escaneados))
 
     pequenos = [(n, i) for n, i in zip(escaneados, infos)
@@ -150,8 +150,7 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
         found = sp.search_artist(name, limit=1)
         if not found:
             return None
-        albums = [a for a in sp.artist_albums(found[0]["id"], limit=20,
-                                              artist_name=name)
+        albums = [a for a in sp.artist_albums(found[0]["id"], limit=10)
                   if a.get("album_type") in ("album", "single")]
         if not albums:
             return None
@@ -159,7 +158,7 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
         return {"album": ultimo.get("name"), "fecha": ultimo.get("release_date"),
                 "tipo": ultimo.get("album_type"), "id": ultimo.get("id")}
 
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=10) as pool:
         discos = list(pool.map(ultimo_disco, [n for n, _ in pequenos[:limit]]))
 
     activos, dormidos, sin_spotify = [], [], []
