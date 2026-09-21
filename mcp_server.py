@@ -375,15 +375,20 @@ def explore_genre(genre: str, depth: int = 60, only_unknown: bool = False) -> di
 def explore_era(genre: str, year_from: int, year_to: int, limit: int = 60) -> dict:
     """Recorrer los clásicos de un género en una franja de años.
 
-    Devuelve álbumes por FECHA DE PRIMERA PUBLICACIÓN según MusicBrainz, que
-    es lo que Spotify se come (allí una reedición de 1979 figura como 2015).
-    Ideal para "el post-punk del 78 al 85" o "indie español de los 90".
+    Devuelve dos listas que se complementan: lo más escuchado del género en
+    Last.fm (refleja el canon, pero sin fecha) y las rarezas de esa franja
+    según MusicBrainz (fecha de PRIMERA edición, que es lo que Spotify se
+    come: allí una reedición de 1979 figura como 2015).
+
+    El canon de la época lo pones tú; esto sirve para recordar nombres y
+    sacar lo que no conocía. Confirma con verify los títulos que afirmes.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
     key = f"era:{genre}:{year_from}:{year_to}:{limit}"
+    _require_lastfm(lf)
     return _cached(key, lambda: explore.era(
-        mb, sp, genre, year_from, year_to, _known(sp, lf, sf), limit))
+        mb, sp, lf, genre, year_from, year_to, _known(sp, lf, sf), limit))
 
 
 @mcp.tool()

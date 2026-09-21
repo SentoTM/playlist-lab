@@ -6,6 +6,8 @@ primero en español (mejor para escenas locales) y, si no hay nada, en inglés
 (mucho mejor para escenas anglosajonas y subgéneros).
 """
 import logging
+import re
+import unicodedata
 from urllib.parse import quote
 
 import httpx
@@ -13,6 +15,29 @@ import httpx
 log = logging.getLogger("playlist_lab.wikipedia")
 HEADERS = {"User-Agent": "playlist-lab/0.2 (herramienta personal; https://github.com/SentoTM/playlist-lab)",
            "Accept": "application/json"}
+
+
+def _flat(s: str) -> str:
+    s = unicodedata.normalize("NFKD", (s or "").lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9 ]+", " ", s)
+
+
+def _es_del_tema(query: str, titulo: str, resumen: str) -> bool:
+    """Evita el falso positivo clásico: buscar un grupo y que la búsqueda
+    devuelva el festival donde tocó. Exige que el nombre aparezca en el
+    título, o en la primera frase del resumen (donde se define el sujeto)."""
+    q, t = _flat(query), _flat(titulo)
+    if not q:
+        return False
+    # sin espacios también: "coldwave" debe casar con "Cold wave (música)"
+    qc, tc = q.replace(" ", ""), t.replace(" ", "")
+    if q in t or qc in tc:
+        return True
+    # el sujeto se define en la primera frase: se parte ANTES de normalizar,
+    # porque la normalización se come los puntos
+    primera = _flat((resumen or "").split(".")[0])
+    return q in primera or qc in primera.replace(" ", "")
 
 
 class WikipediaClient:
@@ -63,6 +88,8 @@ class WikipediaClient:
             for consulta in intentos:
                 for result in self._search(lang, consulta, 3):
                     summary = self._summary(lang, result["title"])
-                    if summary and summary.get("resumen"):
+                    if not summary or not summary.get("resumen"):
+                        continue
+                    if _es_del_tema(query, summary["titulo"], summary["resumen"]):
                         return summary
         return {}

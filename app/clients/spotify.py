@@ -282,11 +282,21 @@ class SpotifyClient:
         return same[:10]
 
     def artist_albums(self, artist_id: str, limit: int = 20,
-                      market: str = "from_token") -> list[dict]:
-        return self._get(
-            f"/artists/{artist_id}/albums",
-            include_groups="album,single", limit=limit, market=market,
-        ).get("items", [])
+                      artist_name: str | None = None) -> list[dict]:
+        """Discografía en Spotify, con respaldo.
+
+        /artists/{id}/albums viene devolviendo vacío para apps nuevas
+        (sep. 2026); si pasa eso y tenemos el nombre, se aproxima con
+        search(artist:"Nombre") filtrando por id de artista.
+        """
+        items = self._get(f"/artists/{artist_id}/albums",
+                          include_groups="album,single", limit=limit,
+                          ).get("items", [])
+        if items or not artist_name:
+            return items
+        found = self.search_album(f'artist:"{artist_name}"', limit=min(limit, 50))
+        return [a for a in found
+                if any(x.get("id") == artist_id for x in a.get("artists", []))]
 
     def new_releases(self, limit: int = 50, country: str | None = None) -> list[dict]:
         """Novedades destacadas de Spotify. Puede estar cerrado (403) a apps

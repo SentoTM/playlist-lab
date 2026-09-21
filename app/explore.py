@@ -72,22 +72,41 @@ def genre(lf: LastfmClient, sp: SpotifyClient, wiki: WikipediaClient,
     }
 
 
-def era(mb: MusicbrainzClient, sp: SpotifyClient, genre_name: str,
-        year_from: int, year_to: int, known: dict, limit: int = 60) -> dict:
-    """Recorrer una época: álbumes de un género en una franja de años.
+def era(mb: MusicbrainzClient, sp: SpotifyClient, lf: LastfmClient,
+        genre_name: str, year_from: int, year_to: int, known: dict,
+        limit: int = 60) -> dict:
+    """Recorrer una época de un género, por dos caminos que se complementan.
 
-    Usa MusicBrainz porque da la fecha de la PRIMERA publicación; Spotify
-    devuelve la de la reedición y hunde los clásicos en el año equivocado.
+    MusicBrainz da la fecha de PRIMERA publicación (Spotify fecha las
+    reediciones y descoloca los clásicos), pero sus etiquetas están poco
+    pobladas: lo que sale son rarezas, no el canon. Last.fm, al revés: sus
+    listas por etiqueta sí reflejan lo que la gente considera importante,
+    pero no traen fecha. Se devuelven las dos y el canon lo pones tú,
+    verificando con `verify` los títulos concretos que vayas a afirmar.
     """
-    releases = mb.releases_by_tag(genre_name, year_from, year_to, limit)
-    for r in releases:
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_mb = pool.submit(mb.releases_by_tag, genre_name, year_from, year_to, limit)
+        f_lf = pool.submit(lf.tag_top_albums, genre_name, 60)
+
+    rarezas = f_mb.result()
+    for r in rarezas:
         r["lo_conoces"] = norm(r["artist"]) in known
+
+    populares = [{"artist": a["artist"], "album": a["name"],
+                  "lo_conoces": norm(a["artist"]) in known}
+                 for a in f_lf.result()]
+
     return {
         "genero": genre_name, "desde": year_from, "hasta": year_to,
-        "albumes": releases,
-        "nota": ("Fechas de primera publicación (MusicBrainz), no de "
-                 "reedición. Verifica en Spotify con resolve antes de "
-                 "montar nada: no todo está disponible."),
+        "lo_mas_escuchado_del_genero": populares[:40],
+        "rarezas_de_la_epoca": rarezas,
+        "como_usarlo": (
+            "'lo_mas_escuchado_del_genero' NO está filtrado por años (Last.fm "
+            "no da fecha): reconoce tú cuáles caen en la franja y confírmalo "
+            "con verify. 'rarezas_de_la_epoca' sí está filtrado por fecha real "
+            "de edición, pero son discos poco etiquetados, no el canon. El "
+            "canon de la época lo aportas tú; estas listas sirven para "
+            "recordar nombres y para encontrar lo que no conocías."),
     }
 
 
@@ -117,18 +136,22 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
             vistos.add(norm(c))
             unicos.append(c)
 
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        infos = list(pool.map(lf.artist_info, unicos[:limit * 2]))
+    escaneados = unicos[:max(limit * 6, 120)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        infos = list(pool.map(lf.artist_info, escaneados))
 
-    pequenos = [(n, i) for n, i in zip(unicos, infos)
+    pequenos = [(n, i) for n, i in zip(escaneados, infos)
                 if i and 0 < i.get("listeners", 0) <= max_listeners]
+    # los más pequeños primero, pero exigiendo público real (evita fantasmas)
+    pequenos = [x for x in pequenos if x[1]["listeners"] >= 500]
     pequenos.sort(key=lambda x: x[1]["listeners"])
 
     def ultimo_disco(name: str) -> dict | None:
         found = sp.search_artist(name, limit=1)
         if not found:
             return None
-        albums = [a for a in sp.artist_albums(found[0]["id"], limit=20)
+        albums = [a for a in sp.artist_albums(found[0]["id"], limit=20,
+                                              artist_name=name)
                   if a.get("album_type") in ("album", "single")]
         if not albums:
             return None
@@ -155,6 +178,10 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
     activos.sort(key=lambda r: r["ultimo_disco"]["fecha"], reverse=True)
     return {
         "generos_buscados": genres[:4],
+        "embudo": {"candidatos_de_las_etiquetas": len(unicos),
+                   "consultados_en_lastfm": len(escaneados),
+                   "bajo_el_tope_de_oyentes": len(pequenos),
+                   "con_disco_reciente": len(activos)},
         "criterio": (f"Artistas etiquetados en esos géneros en Last.fm (a partir "
                      f"de la página {deep_page} del ranking, saltando los "
                      f"grandes), con {max_listeners:,} oyentes o menos y que no "
@@ -176,7 +203,7 @@ def underrated(lf: LastfmClient, sp: SpotifyClient, candidates: list[str],
     with ThreadPoolExecutor(max_workers=5) as pool:
         infos = list(pool.map(lf.artist_info, candidates[:25]))
 
-    culto, discretos, sin_datos = [], [], []
+    culto, discretos, conocidos, sin_datos = [], [], [], []
     for name, info in zip(candidates, infos):
         if not info or not info.get("listeners"):
             sin_datos.append(name)
@@ -185,16 +212,24 @@ def underrated(lf: LastfmClient, sp: SpotifyClient, candidates: list[str],
                "escuchas_por_oyente": info["escuchas_por_oyente"],
                "tags": info["tags"], "lo_conoces": norm(name) in known,
                "bio": info["bio"]}
-        es_culto = (info["escuchas_por_oyente"] >= CULTO_MIN_RATIO
-                    and info["listeners"] <= CULTO_MAX_LISTENERS)
-        (culto if es_culto else discretos).append(row)
+        if info["listeners"] > CULTO_MAX_LISTENERS:
+            conocidos.append(row)          # grande: no cabe llamarlo infravalorado
+        elif info["escuchas_por_oyente"] >= CULTO_MIN_RATIO:
+            culto.append(row)              # poca gente, pero en bucle
+        else:
+            discretos.append(row)          # pequeño y sin público devoto
 
-    culto.sort(key=lambda r: r["escuchas_por_oyente"], reverse=True)
+    for lst in (culto, discretos, conocidos):
+        lst.sort(key=lambda r: r["escuchas_por_oyente"], reverse=True)
     return {
-        "de_culto": culto, "poco_escuchados": discretos, "sin_datos": sin_datos,
+        "de_culto": culto,
+        "pequenos_sin_publico_devoto": discretos,
+        "demasiado_grandes_para_llamarlos_infravalorados": conocidos,
+        "sin_datos": sin_datos,
         "criterio": (f"'De culto' = {CULTO_MIN_RATIO}+ escuchas por oyente y "
-                     f"menos de {CULTO_MAX_LISTENERS:,} oyentes: poca gente, "
-                     "pero en bucle."),
+                     f"hasta {CULTO_MAX_LISTENERS:,} oyentes: poca gente, pero "
+                     "en bucle. Por encima de esos oyentes no es un "
+                     "descubrimiento por muy devoto que sea su público."),
     }
 
 

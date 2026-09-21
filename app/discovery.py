@@ -71,7 +71,7 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
         found = sp.search_artist(name, limit=1)
         if not found:
             return []
-        albums = sp.artist_albums(found[0]["id"], limit=20)
+        albums = sp.artist_albums(found[0]["id"], limit=20, artist_name=name)
         return [a for a in albums
                 if (a.get("release_date") or "") >= cutoff
                 and a.get("album_type") in ("album", "single")]
