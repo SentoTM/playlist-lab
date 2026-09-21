@@ -84,7 +84,11 @@ def status():
         "spotify_user": user,
         "lastfm_enabled": lf is not None,
         "statsfm_enabled": sf is not None,
-        "warnings": sf.privacy_warnings() if sf else [],
+        "warnings": ((sf.privacy_warnings() if sf else [])
+                     + (["Faltan permisos nuevos de Spotify ("
+                         + ", ".join(sp.missing_scopes())
+                         + "): pulsa 'salir' y vuelve a iniciar sesión."]
+                        if sp and sp.authenticated and sp.missing_scopes() else [])),
         "mcp_config": mcp_config(),
     }
 

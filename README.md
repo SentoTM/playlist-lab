@@ -92,8 +92,21 @@ Ejemplos de encargos: *«5 discos de post-punk actual que no conozca, máximo 70
 - `token.json` y `.env` contienen credenciales: están en `.gitignore`.
 - Los clientes externos degradan con gracia (listas vacías + aviso) en vez de tumbar la app. Spotify devuelve 403 en `/artists/{id}/top-tracks` a las apps nuevas; el cliente lo aproxima con búsqueda.
 - `scripts/diag_statsfm.py` diagnostica la API de stats.fm si deja de funcionar.
-- Spotify ha ido cerrando endpoints a las apps nuevas: `/recommendations`, `related-artists` y `audio-features` (nov. 2024), `/artists/{id}/top-tracks` (403) y, en sep. 2026, los campos `popularity` y `genres` en `/search` y el filtro `genre:` en búsqueda de álbumes. Por eso el descubrimiento por género se apoya en las etiquetas de Last.fm y no en los filtros de Spotify.
-- Los permisos incluyen `user-follow-read` y `user-read-currently-playing`; si tu `token.json` es anterior, vuelve a iniciar sesión una vez para que `now_playing` y los artistas seguidos funcionen (lo demás sigue igual).
+- Spotify ha ido cerrando endpoints a las apps nuevas. Comprobado contra la API real en sep. 2026 con `scripts/diag_spotify.py` (o `diag.bat`):
+
+| Endpoint | Estado |
+|---|---|
+| `/recommendations`, `related-artists`, `audio-features` | cerrados desde nov. 2024 |
+| `/artists/{id}/top-tracks` | 403 — se aproxima con `search(artist:"…")` |
+| `/artists?ids=` | 403 — **no hay forma de leer `popularity` ni `followers`**; el tamaño de un artista se mide con los oyentes de Last.fm |
+| `/browse/new-releases` | 403 |
+| `/artists/{id}/albums` | funciona, pero `limit` ahora es **0-10** (antes 50): pasarse da 400 "Invalid limit"; se completa con búsqueda por nombre |
+| `/search` | `limit` también **0-10**, con `offset` hasta 1000 → se pagina. `popularity` y `genres` están deprecados y vienen vacíos; `genre:` solo filtra artistas y canciones, no álbumes |
+| `/me/*` (tops, biblioteca, playlists, seguidos, reproduciendo) | funcionan con sus permisos |
+
+Por eso el descubrimiento por género se apoya en las etiquetas de Last.fm y no en los filtros de Spotify.
+- Los permisos incluyen `user-follow-read` y `user-read-currently-playing`; si tu `token.json` es anterior, `status` te avisa: entra en la web, pulsa "salir" y vuelve a iniciar sesión.
+- La extensión de cuota de Spotify ya solo se concede a organizaciones con más de 250.000 usuarios mensuales, así que estos recortes son permanentes para una herramienta personal: la app está construida asumiéndolos.
 - Los feeds de prensa se definen en `app/clients/press.py` (`FEEDS`): añadir o quitar uno es una línea. Si alguno deja de responder, `music_press` lo avisa y sigue con el resto.
 - MusicBrainz no pide clave, pero limita a 1 petición por segundo: el cliente lo respeta, así que `verify`, `explore_era` y `artist_context` tardan unos segundos.
 - Las consultas pesadas (`taste_profile`, `new_releases`, `explore_*`) se cachean 30 minutos en memoria del servidor MCP.

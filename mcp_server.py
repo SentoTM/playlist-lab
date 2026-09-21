@@ -89,11 +89,20 @@ def status() -> dict:
             user = me.get("display_name") or me.get("id")
         except Exception as e:  # noqa: BLE001
             user = f"error: {e}"
+    avisos = sf.privacy_warnings() if sf else []
+    faltan = sp.missing_scopes() if sp.authenticated else []
+    if faltan:
+        avisos.append(
+            "Al token de Spotify le faltan permisos (" + ", ".join(faltan) +
+            "): dile al usuario que entre en http://127.0.0.1:8888, pulse "
+            "'salir' y vuelva a iniciar sesión. Mientras tanto, no uses "
+            "now_playing ni cuentes con los artistas que sigue.")
     return {
         "spotify_configured": bool(os.getenv("SPOTIFY_CLIENT_ID")),
         "spotify_session": user,
         "lastfm": bool(lf), "statsfm": bool(sf),
-        "warnings": sf.privacy_warnings() if sf else [],
+        "permisos_que_faltan": faltan,
+        "warnings": avisos,
     }
 
 

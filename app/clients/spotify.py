@@ -113,6 +113,17 @@ class SpotifyClient:
     def authenticated(self) -> bool:
         return self._token is not None
 
+    def missing_scopes(self) -> list[str]:
+        """Permisos que pide la app pero no tiene el token guardado.
+
+        Pasa cuando se añaden permisos nuevos: el token viejo sigue siendo
+        válido pero le faltan, y las llamadas fallan con 401/403. Se arregla
+        cerrando sesión y volviendo a entrar en la web."""
+        if not self._token:
+            return []
+        tiene = set((self._token.get("scope") or "").split())
+        return [s for s in SCOPES.split() if s not in tiene]
+
     def logout(self) -> None:
         TOKEN_FILE.unlink(missing_ok=True)
         self._token = None
@@ -283,20 +294,26 @@ class SpotifyClient:
 
     def artist_albums(self, artist_id: str, limit: int = 20,
                       artist_name: str | None = None) -> list[dict]:
-        """Discografía en Spotify, con respaldo.
+        """Discografía en Spotify, sorteando dos recortes de la API.
 
-        /artists/{id}/albums viene devolviendo vacío para apps nuevas
-        (sep. 2026); si pasa eso y tenemos el nombre, se aproxima con
-        search(artist:"Nombre") filtrando por id de artista.
+        1) `/artists/{id}/albums` ya solo admite `limit` de 0 a 10 (antes 50):
+           pasarse da 400 "Invalid limit", así que se recorta a 10.
+        2) Para tener discografía de verdad se completa con
+           search(artist:"Nombre"), filtrando por id para evitar homónimos.
+        Verificado contra la API real en sep. 2026 (scripts/diag_spotify.py).
         """
         items = self._get(f"/artists/{artist_id}/albums",
-                          include_groups="album,single", limit=limit,
-                          ).get("items", [])
-        if items or not artist_name:
-            return items
-        found = self.search_album(f'artist:"{artist_name}"', limit=min(limit, 50))
-        return [a for a in found
-                if any(x.get("id") == artist_id for x in a.get("artists", []))]
+                          include_groups="album,single",
+                          limit=min(limit, self.MAX_PAGE)).get("items", [])
+        if artist_name and len(items) < limit:
+            vistos = {a.get("id") for a in items}
+            for a in self.search_album(f'artist:"{artist_name}"', limit=50):
+                if a.get("id") in vistos:
+                    continue
+                if any(x.get("id") == artist_id for x in a.get("artists", [])):
+                    items.append(a)
+                    vistos.add(a.get("id"))
+        return items[:limit]
 
     def new_releases(self, limit: int = 50, country: str | None = None) -> list[dict]:
         """Novedades destacadas de Spotify. Puede estar cerrado (403) a apps
@@ -315,17 +332,32 @@ class SpotifyClient:
     def album_tracks(self, album_id: str, limit: int = 50) -> list[dict]:
         return self._get(f"/albums/{album_id}/tracks", limit=limit).get("items", [])
 
+    # Spotify bajó el tope de `limit` a 10 en /search y en /artists/{id}/albums
+    # (sep. 2026). Pasarse devuelve 400 "Invalid limit", así que se pagina.
+    MAX_PAGE = 10
+
+    def _search_paged(self, query: str, kind: str, want: int) -> list[dict]:
+        """Busca `want` resultados paginando de 10 en 10 (tope de la API)."""
+        clave = {"track": "tracks", "album": "albums", "artist": "artists"}[kind]
+        out: list[dict] = []
+        for offset in range(0, min(want, 1000), self.MAX_PAGE):
+            page = self._get("/search", q=query, type=kind,
+                             limit=min(self.MAX_PAGE, want - len(out)),
+                             offset=offset).get(clave, {}).get("items", [])
+            out.extend(page)
+            if len(page) < self.MAX_PAGE or len(out) >= want:
+                break
+        return out[:want]
+
     def search_track(self, query: str, limit: int = 3) -> list[dict]:
-        return self._get("/search", q=query, type="track", limit=limit).get(
-            "tracks", {}).get("items", [])
+        return self._search_paged(query, "track", limit)
 
     def album(self, album_id: str) -> dict:
         """Álbum completo, con tracks (incluye duration_ms por pista)."""
         return self._get(f"/albums/{album_id}", market="from_token")
 
     def search_album(self, query: str, limit: int = 3) -> list[dict]:
-        return self._get("/search", q=query, type="album", limit=limit).get(
-            "albums", {}).get("items", [])
+        return self._search_paged(query, "album", limit)
 
     def search_albums_filtered(self, text: str = "", year: str = "",
                                hipster: bool = False, new: bool = False,
@@ -349,22 +381,35 @@ class SpotifyClient:
             parts.append("tag:new")
         if not parts:
             return []
-        return self._get("/search", q=" ".join(parts), type="album",
-                         limit=limit, offset=offset).get("albums", {}).get("items", [])
+        return self._search_paged(" ".join(parts), "album", limit)
 
     def artists_by_id(self, ids: list[str]) -> list[dict]:
-        """Varios artistas de una vez: popularidad, seguidores y géneros."""
+        """Varios artistas de una vez.
+
+        OJO: `/artists` devuelve 403 a las apps nuevas (sep. 2026), así que
+        en la práctica esto suele volver vacío. No hay forma de leer
+        `popularity` ni `followers`: para medir el tamaño de un artista usa
+        los oyentes de Last.fm (lf.artist_info).
+        """
         out = []
         for i in range(0, len(ids), 50):
             chunk = [x for x in ids[i:i + 50] if x]
             if not chunk:
                 continue
-            out.extend(self._get("/artists", ids=",".join(chunk)).get("artists", []))
+            try:
+                out.extend(self._request(
+                    "GET", "/artists", params={"ids": ",".join(chunk)}
+                ).get("artists", []))
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (400, 403, 404):
+                    log.warning("Spotify %s en /artists: sin popularidad",
+                                e.response.status_code)
+                    return out
+                raise
         return out
 
     def search_artist(self, query: str, limit: int = 3) -> list[dict]:
-        return self._get("/search", q=query, type="artist", limit=limit).get(
-            "artists", {}).get("items", [])
+        return self._search_paged(query, "artist", limit)
 
     def create_playlist(self, name: str, description: str, uris: list[str],
                         public: bool = False) -> dict:
