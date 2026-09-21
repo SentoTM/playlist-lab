@@ -158,7 +158,7 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
         return {"album": ultimo.get("name"), "fecha": ultimo.get("release_date"),
                 "tipo": ultimo.get("album_type"), "id": ultimo.get("id")}
 
-    with ThreadPoolExecutor(max_workers=10) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         discos = list(pool.map(ultimo_disco, [n for n, _ in pequenos[:limit]]))
 
     activos, dormidos, sin_spotify = [], [], []

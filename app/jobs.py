@@ -32,6 +32,7 @@ def _estado_publico(key: str, job: dict, esperado: float) -> dict:
     return {
         "estado": "en_curso",
         "segundos_transcurridos": round(time.time() - job["iniciado"]),
+        "progreso": job.get("progreso") or "arrancando",
         "vuelve_a_llamar": True,
         "nota": (f"Sigo reuniendo los datos (llevo {esperado:.0f} s esperando). "
                  "Vuelve a llamar a esta misma herramienta con los MISMOS "
@@ -41,7 +42,11 @@ def _estado_publico(key: str, job: dict, esperado: float) -> dict:
 
 
 def run_or_wait(key: str, fn, wait_seconds: float = 40.0) -> dict:
-    """Devuelve el resultado, o "en curso" si aún no está listo."""
+    """Devuelve el resultado, o "en curso" si aún no está listo.
+
+    `fn` puede aceptar un argumento: una función `paso(texto)` para ir
+    contando por dónde va, que se ve en las respuestas "en curso".
+    """
     ahora = time.time()
     with _lock:
         job = _jobs.get(key)
@@ -57,8 +62,13 @@ def run_or_wait(key: str, fn, wait_seconds: float = 40.0) -> dict:
 
     if arrancar:
         def _run():
+            def paso(texto: str) -> None:
+                with _lock:
+                    job["progreso"] = texto
             try:
-                resultado = fn()
+                import inspect
+                acepta = bool(inspect.signature(fn).parameters)
+                resultado = fn(paso) if acepta else fn()
                 with _lock:
                     job.update(estado="listo", resultado=resultado,
                                terminado=time.time())

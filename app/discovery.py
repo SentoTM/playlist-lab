@@ -44,7 +44,7 @@ def orbit_artists(sp: SpotifyClient, lf: LastfmClient | None,
     if lf:
         def sims(name: str) -> list[str]:
             return [s["name"] for s in lf.similar_artists(name, per_artist)]
-        with ThreadPoolExecutor(max_workers=8) as pool:
+        with ThreadPoolExecutor(max_workers=4) as pool:
             for batch in pool.map(sims, mine[:depth]):
                 for n in batch:
                     if norm(n) not in seen:
@@ -56,14 +56,20 @@ def orbit_artists(sp: SpotifyClient, lf: LastfmClient | None,
 def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient | None,
                  known: dict[str, dict], months: int = 3,
                  include_known_artists: bool = True,
-                 max_artists: int = 24) -> dict:
+                 max_artists: int = 16, paso=None) -> dict:
     """Discos publicados en los últimos `months` meses dentro de tu órbita.
 
     Separa lo que es de artistas que ya escuchas ("de los tuyos") de lo que
     viene de vecinos que aún no conoces ("alrededor"), que es donde suele
     estar lo interesante.
     """
+    def avisar(texto: str) -> None:
+        if paso:
+            paso(texto)
+
+    peticiones_al_empezar = SpotifyClient.peticiones
     cutoff = (dt.date.today() - dt.timedelta(days=months * 31)).isoformat()
+    avisar("buscando artistas vecinos en Last.fm")
     mine, neighbours = orbit_artists(sp, lf)
     warnings = []
 
@@ -81,7 +87,8 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
 
     targets = (mine[:max_artists // 2] if include_known_artists else []) + \
               neighbours[:max_artists]
-    with ThreadPoolExecutor(max_workers=10) as pool:
+    avisar(f"mirando los discos recientes de {len(targets)} artistas")
+    with ThreadPoolExecutor(max_workers=4) as pool:
         batches = list(pool.map(recent_for, targets))
 
     de_los_tuyos, alrededor, seen_albums = [], [], set()
@@ -95,6 +102,7 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
                              else f"{name}, cercano a lo que escuchas")
             (de_los_tuyos if es_mio else alrededor).append(row)
 
+    avisar("revisando las novedades destacadas de Spotify")
     destacadas = []
     for a in sp.new_releases(50):
         if (a.get("release_date") or "") < cutoff or a.get("id") in seen_albums:
@@ -112,6 +120,7 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
 
     return {
         "desde": cutoff,
+        "peticiones_a_spotify": SpotifyClient.peticiones - peticiones_al_empezar,
         "de_los_tuyos": de_los_tuyos,
         "alrededor": alrededor,
         "destacadas_spotify": destacadas[:25],

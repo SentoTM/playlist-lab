@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import secrets
+import threading
 import time
 from pathlib import Path
 
@@ -31,13 +32,42 @@ SCOPES = " ".join([
 
 TOKEN_FILE = Path(__file__).resolve().parents[2] / "token.json"
 log = logging.getLogger("playlist_lab.spotify")
+MAX_ESPERA_429 = 10  # segundos; por encima, mejor avisar que quedarse colgado
+
+
+class SpotifyRateLimited(RuntimeError):
+    """Spotify pide una espera demasiado larga para aguantarla en caliente."""
 
 
 class SpotifyAuthError(Exception):
     pass
 
 
+class _RateLimiter:
+    """Freno compartido: Spotify en modo desarrollo tiene cuota por
+    desarrollador y responde 429 si vamos en tromba. Más vale ir a ritmo fijo
+    que dormir esperas largas después."""
+
+    def __init__(self, por_segundo: float = 8.0):
+        self._intervalo = 1.0 / por_segundo
+        self._lock = threading.Lock()
+        self._siguiente = 0.0
+
+    def esperar(self) -> None:
+        with self._lock:
+            ahora = time.monotonic()
+            if self._siguiente > ahora:
+                time.sleep(self._siguiente - ahora)
+                ahora = time.monotonic()
+            self._siguiente = ahora + self._intervalo
+
+
 class SpotifyClient:
+    # compartidos por todas las instancias: la cuota de Spotify es por app
+    _limiter = _RateLimiter(8.0)
+    peticiones = 0     # contador para saber cuánto cuesta cada operación
+    limitaciones = 0   # cuántas veces nos han frenado con un 429
+
     def __init__(self, client_id: str, redirect_uri: str):
         self.client_id = client_id
         self.redirect_uri = redirect_uri
@@ -136,13 +166,24 @@ class SpotifyClient:
         if time.time() >= self._token.get("expires_at", 0):
             self._refresh()
         for attempt in range(3):
+            self._limiter.esperar()
+            type(self).peticiones += 1
             resp = self._http.request(
                 method, f"{API_BASE}{path}",
                 headers={"Authorization": f"Bearer {self._token['access_token']}"},
                 **kwargs,
             )
             if resp.status_code == 429:
-                time.sleep(int(resp.headers.get("Retry-After", "2")) + 1)
+                espera = int(resp.headers.get("Retry-After", "2"))
+                type(self).limitaciones += 1
+                log.warning("Spotify 429 en %s: pide esperar %ss", path, espera)
+                if espera > MAX_ESPERA_429:
+                    raise SpotifyRateLimited(
+                        f"Spotify ha limitado la app y pide esperar {espera} s "
+                        f"({espera // 60} min). Es la cuota del modo desarrollo: "
+                        "espera un rato antes de volver a pedir consultas "
+                        "grandes.")
+                time.sleep(espera + 1)
                 continue
             if resp.status_code == 401 and attempt == 0:
                 self._refresh()

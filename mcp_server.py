@@ -321,10 +321,11 @@ def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
     _require_auth(sp)
     key = f"new:{months}:{include_known_artists}"
 
-    def calcular():
+    def calcular(paso):
+        paso("leyendo lo que ya conoces (tops, biblioteca, Last.fm, stats.fm)")
         known = _cached("known", lambda: taste.known_artists(sp, lf, sf))
         return discovery.new_releases(sp, lf, sf, known, months,
-                                      include_known_artists)
+                                      include_known_artists, paso=paso)
 
     return jobs.run_or_wait(key, calcular)
 
