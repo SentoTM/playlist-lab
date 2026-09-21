@@ -85,10 +85,12 @@ def taste_profile() -> dict:
     """Perfil de gustos del usuario: EMPIEZA SIEMPRE POR AQUÍ antes de proponer.
 
     Devuelve, por periodo (4 semanas / 6 meses / años), sus artistas top con
-    géneros y sus canciones top en Spotify; sus tops recientes en Last.fm
-    (incluye escuchas fuera de Spotify); su top histórico completo (stats.fm);
-    `fase_actual` (artistas nuevos en el corto plazo que no están en el
-    largo) y `generos_principales` agregados. Se cachea 30 min.
+    géneros y sus canciones top en Spotify; su top histórico completo
+    (stats.fm); `fase_actual` (artistas nuevos en el corto plazo que no están
+    en el largo) y `generos_principales` agregados. Se cachea 30 min.
+
+    Para saber si conoce a un artista concreto usa check_known, no esto: el
+    perfil son solo sus tops, y escucha mucho más de lo que aparece aquí.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)

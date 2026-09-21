@@ -1,12 +1,14 @@
 """Perfil de gustos: lo que la IA necesita saber de ti antes de proponer.
 
-Junta las tres fuentes en un resumen compacto y legible:
+Resumen compacto de dos fuentes que no se solapan:
   - Spotify: tops de artistas/canciones por periodo (4 semanas, 6 meses, años)
     con los géneros que Spotify asigna a cada artista.
-  - Last.fm: tops del usuario (incluye scrobbles de fuera de Spotify).
-  - stats.fm: top lifetime (historial completo importado) con géneros.
+  - stats.fm: historial completo (lifetime) con géneros.
 
-No decide nada: describe. La curación la hace quien conversa contigo.
+Last.fm queda fuera del perfil a propósito: al scrobblear solo desde Spotify,
+sus tops duplican los de Spotify y alargan el contexto sin añadir señal. Su
+valor está en known_artists/check_known, donde sí es irreemplazable (playcount
+de CUALQUIER artista, no solo de los tops).
 """
 from collections import Counter
 
@@ -32,7 +34,7 @@ def taste_profile(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient 
                   artists_per_range: int = 20, tracks_per_range: int = 15) -> dict:
     """Resumen de gustos por periodo, géneros agregados y señales de cambio."""
     genres: Counter = Counter()
-    out: dict = {"spotify": {}, "lastfm": None, "statsfm": None}
+    out: dict = {"spotify": {}, "statsfm": None}
 
     for rng, label in RANGES.items():
         artists = sp.top_artists(rng, 50)
@@ -45,14 +47,6 @@ def taste_profile(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient 
                         for a in artists[:artists_per_range]],
             "tracks": [f"{(t.get('artists') or [{}])[0].get('name', '')} – {t.get('name', '')}"
                        for t in tracks],
-        }
-
-    if lf and lf.username:
-        out["lastfm"] = {
-            "recientes_3_meses": [a["name"] for a in lf.user_top_artists("3month", 20)],
-            "ultimo_anio": [a["name"] for a in lf.user_top_artists("12month", 20)],
-            "top_canciones_recientes": [f"{t['artist']} – {t['name']}"
-                                        for t in lf.user_top_tracks("3month", 15)],
         }
 
     if sf:

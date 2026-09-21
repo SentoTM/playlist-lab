@@ -93,7 +93,6 @@ $("loadProfile").onclick = async () => {
     for (const [label, d] of Object.entries(p.spotify)) {
       h += `<div><h2>Spotify · ${esc(label)}</h2><ul>${d.artists.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${esc(a.genres.slice(0,2).join(", "))}</span></li>`).join("")}</ul></div>`;
     }
-    if (p.lastfm) h += `<div><h2>Last.fm · 3 meses</h2><ul>${p.lastfm.recientes_3_meses.slice(0, 12).map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>`;
     if (p.statsfm) h += `<div><h2>stats.fm · histórico</h2><ul>${p.statsfm.top_artistas_historico.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${a.streams}</span></li>`).join("")}</ul></div>`;
     h += "</div>";
     $("profile").innerHTML = h;
