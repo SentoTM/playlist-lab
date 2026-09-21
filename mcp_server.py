@@ -18,7 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import discovery, explore, library, taste   # noqa: E402
+from app import discovery, explore, jobs, library, taste  # noqa: E402
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.press import FEEDS, PressClient     # noqa: E402
@@ -121,7 +121,8 @@ def taste_profile() -> dict:
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
-    return _cached("profile", lambda: taste.taste_profile(sp, lf, sf))
+    return jobs.run_or_wait(
+        "profile", lambda: taste.taste_profile(sp, lf, sf))
 
 
 @mcp.tool()
@@ -312,16 +313,20 @@ def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
     Esto es lo que una búsqueda web no te da: novedades filtradas por ÉL.
     Para contexto y crítica de esas novedades, combínalo con music_press.
 
-    LENTO (medio minuto largo). Si la llamada da error por tiempo de espera,
-    vuelve a lanzarla: el servidor termina igualmente el trabajo y deja el
-    resultado en caché, así que el segundo intento es inmediato.
+    LENTO: hace cientos de peticiones. Se calcula en segundo plano, así que
+    si la respuesta dice `vuelve_a_llamar`, llama otra vez con los MISMOS
+    parámetros: el trabajo sigue en marcha y la siguiente llamada lo recoge.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
-    known = _cached("known", lambda: taste.known_artists(sp, lf, sf))
     key = f"new:{months}:{include_known_artists}"
-    return _cached(key, lambda: discovery.new_releases(
-        sp, lf, sf, known, months, include_known_artists))
+
+    def calcular():
+        known = _cached("known", lambda: taste.known_artists(sp, lf, sf))
+        return discovery.new_releases(sp, lf, sf, known, months,
+                                      include_known_artists)
+
+    return jobs.run_or_wait(key, calcular)
 
 
 @mcp.tool()
@@ -422,15 +427,20 @@ def discover_emerging(genres: list[str], max_listeners: int = 150000,
     búsqueda de álbumes para apps nuevas y tag:new/tag:hipster devuelven
     ruido. Cruza el resultado con music_press antes de recomendar nada.
 
-    LENTO. Si da error por tiempo de espera, vuelve a lanzarla: el trabajo
-    continúa y queda en caché, así que el segundo intento es inmediato.
+    LENTO: consulta más de cien artistas. Se calcula en segundo plano, así
+    que si la respuesta dice `vuelve_a_llamar`, llama otra vez con los MISMOS
+    parámetros para recoger el resultado.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
     _require_lastfm(lf)
-    key = f"emerg:{','.join(genres)}:{max_listeners}:{months}:{deep_page}"
-    return _cached(key, lambda: explore.emerging(
-        sp, lf, genres, _known(sp, lf, sf), max_listeners, months, limit, deep_page))
+    key = f"emerg:{','.join(genres)}:{max_listeners}:{months}:{deep_page}:{limit}"
+
+    def calcular():
+        return explore.emerging(sp, lf, genres, _known(sp, lf, sf),
+                                max_listeners, months, limit, deep_page)
+
+    return jobs.run_or_wait(key, calcular)
 
 
 @mcp.tool()

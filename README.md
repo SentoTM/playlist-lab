@@ -109,4 +109,4 @@ Por eso el descubrimiento por género se apoya en las etiquetas de Last.fm y no 
 - La extensión de cuota de Spotify ya solo se concede a organizaciones con más de 250.000 usuarios mensuales, así que estos recortes son permanentes para una herramienta personal: la app está construida asumiéndolos.
 - Los feeds de prensa se definen en `app/clients/press.py` (`FEEDS`): añadir o quitar uno es una línea. Si alguno deja de responder, `music_press` lo avisa y sigue con el resto.
 - MusicBrainz no pide clave, pero limita a 1 petición por segundo: el cliente lo respeta, así que `verify`, `explore_era` y `artist_context` tardan unos segundos.
-- Las consultas pesadas (`taste_profile`, `new_releases`, `explore_*`) se cachean 30 minutos en memoria del servidor MCP.
+- Las consultas pesadas se cachean 30 minutos en memoria del servidor MCP. `taste_profile`, `new_releases` y `discover_emerging` además se calculan en segundo plano (`app/jobs.py`): hacen cientos de peticiones y no caben en el minuto que aguanta el cliente MCP, así que la primera llamada responde "en curso" y la siguiente, con los mismos parámetros, recoge el resultado.
