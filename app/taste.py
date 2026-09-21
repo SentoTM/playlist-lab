@@ -1,8 +1,8 @@
 """Perfil de gustos: lo que la IA necesita saber de ti antes de proponer.
 
-Resumen compacto de dos fuentes que no se solapan:
-  - Spotify: tops de artistas/canciones por periodo (4 semanas, 6 meses, años)
-    con los géneros que Spotify asigna a cada artista.
+Resumen compacto de fuentes que no se solapan:
+  - Spotify: tops por periodo (4 semanas, 6 meses, años) con géneros, y la
+    biblioteca guardada, que es otra señal: guardar es decidir, no repetir.
   - stats.fm: historial completo (lifetime) con géneros.
 
 Last.fm queda fuera del perfil a propósito: al scrobblear solo desde Spotify,
@@ -63,6 +63,11 @@ def taste_profile(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient 
                 for t in sf.top_tracks("lifetime", 20)],
         }
 
+    try:
+        out["biblioteca"] = library(sp, 400)
+    except Exception:  # noqa: BLE001
+        out["biblioteca"] = None
+
     # Señales de cambio: artistas nuevos en el corto plazo que no están en el largo
     short = {a["artist"] for a in out["spotify"]["4 semanas"]["artists"]}
     long_ = {a["artist"] for a in out["spotify"]["años"]["artists"]}
@@ -71,12 +76,61 @@ def taste_profile(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient 
     return out
 
 
+def library(sp: SpotifyClient, max_tracks: int = 600) -> dict:
+    """Tu biblioteca: lo que has GUARDADO, no lo que has repetido.
+
+    Guardar es una decisión deliberada; los tops son solo repetición. Dos
+    señales distintas: aquí aparecen discos que aprecias aunque no suenen a
+    diario, y artistas que un top nunca mostraría.
+    """
+    tracks = sp.all_saved_tracks(max_tracks)
+    albums = sp.saved_albums(300)
+    por_artista: Counter = Counter()
+    for t in tracks:
+        for a in t.get("artists") or []:
+            if a.get("name"):
+                por_artista[a["name"]] += 1
+    albums_rows = [{
+        "artist": (a.get("artists") or [{}])[0].get("name", ""),
+        "album": a.get("name", ""),
+        "year": (a.get("release_date") or "")[:4],
+        "guardado": (a.get("_added_at") or "")[:10],
+    } for a in albums]
+    albums_rows.sort(key=lambda r: r["guardado"], reverse=True)
+    return {
+        "canciones_guardadas": len(tracks),
+        "albumes_guardados": len(albums),
+        "artistas_mas_guardados": [{"artist": n, "canciones": c}
+                                   for n, c in por_artista.most_common(30)],
+        "albumes_recientes_en_tu_biblioteca": albums_rows[:25],
+    }
+
+
+def playlists(sp: SpotifyClient, mine_only: bool = True) -> list[dict]:
+    """Tus playlists: cómo organizas tú la música (temas, estados de ánimo,
+    proyectos). Los nombres dicen mucho sobre para qué usas cada cosa."""
+    me = sp.me().get("id")
+    out = []
+    for pl in sp.my_playlists():
+        if mine_only and (pl.get("owner") or {}).get("id") != me:
+            continue
+        out.append({
+            "nombre": pl.get("name"),
+            "descripcion": pl.get("description") or "",
+            "canciones": (pl.get("tracks") or {}).get("total", 0),
+            "id": pl.get("id"),
+            "publica": pl.get("public"),
+        })
+    return out
+
+
 def known_artists(sp: SpotifyClient, lf: LastfmClient | None,
                   sf: StatsfmClient | None) -> dict[str, dict]:
     """Todos los artistas que conoces, con la fuente y la magnitud.
 
-    Devuelve {nombre_normalizado: {"artist", "spotify_rank", "lastfm_plays",
-    "statsfm_streams"}}. Es lo que usa check_known para filtrar propuestas.
+    Cruza cinco señales: tops de Spotify, biblioteca guardada, artistas que
+    sigues, scrobbles de Last.fm e historial de stats.fm. Es lo que usa
+    check_known para no proponerte algo que ya tienes.
     """
     known: dict[str, dict] = {}
 
@@ -87,6 +141,19 @@ def known_artists(sp: SpotifyClient, lf: LastfmClient | None,
         for i, a in enumerate(sp.top_artists(rng, 50)):
             e = entry(a["name"])
             e["spotify_rank"] = min(e.get("spotify_rank", 999), i + 1)
+
+    for t in sp.all_saved_tracks(600):
+        for a in t.get("artists") or []:
+            if a.get("name"):
+                e = entry(a["name"])
+                e["canciones_guardadas"] = e.get("canciones_guardadas", 0) + 1
+    for a in sp.saved_albums(300):
+        for art in a.get("artists") or []:
+            if art.get("name"):
+                entry(art["name"])["album_guardado"] = True
+    for a in sp.followed_artists(300):
+        if a.get("name"):
+            entry(a["name"])["lo_sigues"] = True
     if lf and lf.username:
         for a in lf.user_top_artists("overall", 300):
             entry(a["name"])["lastfm_plays"] = a["playcount"]

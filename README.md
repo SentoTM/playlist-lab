@@ -52,9 +52,12 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | Consulta | |
 |---|---|
 | `status` | fuentes configuradas, sesión, avisos |
+| `my_library` | canciones y álbumes guardados: guardar es decidir, repetir no |
+| `my_playlists` / `playlist_contents` | cómo organiza él la música, y qué hay dentro de cada lista |
+| `now_playing` | qué suena ahora mismo |
 | `taste_profile` | tops por periodo con géneros, Last.fm reciente, histórico stats.fm, `fase_actual`, `generos_principales` |
 | `listening_history` | tops en bruto por fuente/rango, paginable |
-| `check_known` | si ya conoces a unos artistas y con qué evidencia (Spotify/Last.fm/stats.fm) |
+| `check_known` | si ya conoces a unos artistas y con qué evidencia (tops, biblioteca, seguidos, Last.fm, stats.fm) |
 | `similar_artists` | similares según Last.fm, filtrando conocidos |
 | `search` | búsqueda en Spotify (álbum/canción/artista, con filtros `year:`, `genre:`) |
 | `album_info` | año, duración y pistas de un álbum |
@@ -89,6 +92,8 @@ Ejemplos de encargos: *«5 discos de post-punk actual que no conozca, máximo 70
 - `token.json` y `.env` contienen credenciales: están en `.gitignore`.
 - Los clientes externos degradan con gracia (listas vacías + aviso) en vez de tumbar la app. Spotify devuelve 403 en `/artists/{id}/top-tracks` a las apps nuevas; el cliente lo aproxima con búsqueda.
 - `scripts/diag_statsfm.py` diagnostica la API de stats.fm si deja de funcionar.
+- Spotify ha ido cerrando endpoints a las apps nuevas: `/recommendations`, `related-artists` y `audio-features` (nov. 2024), `/artists/{id}/top-tracks` (403) y, en sep. 2026, los campos `popularity` y `genres` en `/search` y el filtro `genre:` en búsqueda de álbumes. Por eso el descubrimiento por género se apoya en las etiquetas de Last.fm y no en los filtros de Spotify.
+- Los permisos incluyen `user-follow-read` y `user-read-currently-playing`; si tu `token.json` es anterior, vuelve a iniciar sesión una vez para que `now_playing` y los artistas seguidos funcionen (lo demás sigue igual).
 - Los feeds de prensa se definen en `app/clients/press.py` (`FEEDS`): añadir o quitar uno es una línea. Si alguno deja de responder, `music_press` lo avisa y sigue con el resto.
 - MusicBrainz no pide clave, pero limita a 1 petición por segundo: el cliente lo respeta, así que `verify`, `explore_era` y `artist_context` tardan unos segundos.
 - Las consultas pesadas (`taste_profile`, `new_releases`, `explore_*`) se cachean 30 minutos en memoria del servidor MCP.

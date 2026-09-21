@@ -102,7 +102,8 @@ def taste_profile() -> dict:
     """Perfil de gustos del usuario: EMPIEZA SIEMPRE POR AQUÍ antes de proponer.
 
     Devuelve, por periodo (4 semanas / 6 meses / años), sus artistas top con
-    géneros y sus canciones top en Spotify; su top histórico completo
+    géneros y sus canciones top en Spotify; su biblioteca guardada (otra
+    señal: guardar es decidir, repetir no); su top histórico completo
     (stats.fm); `fase_actual` (artistas nuevos en el corto plazo que no están
     en el largo) y `generos_principales` agregados. Se cachea 30 min.
 
@@ -112,6 +113,70 @@ def taste_profile() -> dict:
     sp, lf, sf = _clients()
     _require_auth(sp)
     return _cached("profile", lambda: taste.taste_profile(sp, lf, sf))
+
+
+@mcp.tool()
+def my_library() -> dict:
+    """Lo que el usuario ha GUARDADO en Spotify: canciones y álbumes.
+
+    Señal distinta de los tops: guardar es una decisión deliberada, repetir
+    no. Aquí salen discos que aprecia aunque no suenen a diario y artistas
+    que ningún top muestra. Mira también qué ha guardado últimamente: dice
+    hacia dónde va ahora mismo. Se cachea 30 min.
+    """
+    sp, _, _ = _clients()
+    _require_auth(sp)
+    return _cached("library", lambda: taste.library(sp))
+
+
+@mcp.tool()
+def my_playlists(mine_only: bool = True) -> list:
+    """Las playlists del usuario: cómo organiza él la música.
+
+    Los nombres y tamaños dicen para qué usa cada cosa (trabajar, correr, un
+    género, un viaje). Útil antes de crear una nueva: para no duplicar, para
+    seguir su forma de nombrarlas, o para proponer ampliar una existente.
+    Con playlist_contents puedes ver qué hay dentro de una.
+    """
+    sp, _, _ = _clients()
+    _require_auth(sp)
+    return _cached(f"playlists:{mine_only}", lambda: taste.playlists(sp, mine_only))
+
+
+@mcp.tool()
+def playlist_contents(playlist_id: str, limit: int = 100) -> dict:
+    """Qué hay dentro de una playlist suya (id de my_playlists).
+
+    Sirve para entender un contexto concreto ("mi playlist de currar") antes
+    de ampliarla o de hacer una hermana.
+    """
+    sp, _, _ = _clients()
+    _require_auth(sp)
+    tracks = sp.playlist_tracks(playlist_id, limit)
+    return {"n": len(tracks), "tracks": [
+        {"artist": (t.get("artists") or [{}])[0].get("name"),
+         "title": t.get("name"),
+         "album": (t.get("album") or {}).get("name")} for t in tracks]}
+
+
+@mcp.tool()
+def now_playing() -> dict:
+    """Qué está sonando ahora mismo, si hay algo.
+
+    Para encargos del tipo "pon algo que siga a esto". Requiere haber hecho
+    login después de añadir el permiso user-read-currently-playing.
+    """
+    sp, _, _ = _clients()
+    _require_auth(sp)
+    t = sp.currently_playing()
+    if not t:
+        return {"sonando": None,
+                "nota": ("Nada sonando, o falta el permiso: vuelve a iniciar "
+                         "sesión en http://127.0.0.1:8888 para concederlo.")}
+    return {"sonando": {"artist": (t.get("artists") or [{}])[0].get("name"),
+                        "title": t.get("name"),
+                        "album": (t.get("album") or {}).get("name"),
+                        "uri": t.get("uri")}}
 
 
 @mcp.tool()
@@ -151,8 +216,9 @@ def listening_history(source: str = "statsfm", kind: str = "artists",
 def check_known(artists: list[str], deep: bool = True) -> dict:
     """¿Conoce ya el usuario a estos artistas? Úsalo para filtrar propuestas.
 
-    Devuelve por artista: known (bool) y evidencia (puesto en tops de
-    Spotify, scrobbles en Last.fm, streams en stats.fm). Con deep=True
+    Devuelve por artista: known (bool) y evidencia (puesto en sus tops de
+    Spotify, canciones o álbumes guardados, si lo sigue, scrobbles en
+    Last.fm, streams en stats.fm). Con deep=True
     consulta además en Last.fm los que no aparecen en ningún top (detecta
     artistas escuchados poco pero escuchados).
     """
@@ -192,8 +258,12 @@ def similar_artists(artist: str, limit: int = 15, only_unknown: bool = True) -> 
 
 @mcp.tool()
 def search(query: str, kind: str = "album", limit: int = 5) -> list:
-    """Busca en Spotify. kind: album | track | artist. Acepta filtros de
-    Spotify: 'album:Nombre artist:Grupo', 'year:2020-2024', 'genre:post-punk'."""
+    """Busca en Spotify. kind: album | track | artist.
+
+    Filtros útiles: 'album:Nombre artist:Grupo', 'year:2020-2024'. OJO:
+    'genre:' ya no filtra y los campos popularity/genres vienen vacíos para
+    apps nuevas (deprecación de Spotify). Para explorar por género usa
+    explore_genre o discover_emerging."""
     sp, _, _ = _clients()
     _require_auth(sp)
     if kind == "album":
@@ -317,24 +387,29 @@ def explore_era(genre: str, year_from: int, year_to: int, limit: int = 60) -> di
 
 
 @mcp.tool()
-def discover_emerging(genres: list[str], max_popularity: int = 45,
-                      limit: int = 60) -> dict:
-    """Bandas emergentes: recién publicadas y aún con poca audiencia.
+def discover_emerging(genres: list[str], max_listeners: int = 150000,
+                      months: int = 18, limit: int = 40,
+                      deep_page: int = 2) -> dict:
+    """Bandas emergentes de unos géneros: pequeñas y activas ahora.
 
-    Usa los filtros oficiales de Spotify tag:new (lo recién salido) y
-    tag:hipster (el 10 % menos popular del catálogo), descarta lo que el
-    usuario ya conoce y lo que pasa de `max_popularity` (0-100; por debajo
-    de 30 es realmente pequeño).
+    Toma los artistas etiquetados en esos géneros en Last.fm saltando las
+    primeras páginas del ranking (donde están los grandes), se queda con los
+    que tienen `max_listeners` oyentes o menos y no conoce el usuario, y mira
+    en Spotify si han publicado algo en los últimos `months` meses.
 
-    Pásale géneros concretos de su perfil o de explore_genre. Que algo sea
-    nuevo y desconocido no lo hace bueno: cruza con music_press y filtra.
+    Sube `deep_page` (3, 4, 5…) para bajar más en el pozo. Baja
+    `max_listeners` a 30000-50000 para rarezas de verdad.
+
+    No usa los filtros de Spotify a propósito: `genre:` ya no funciona en
+    búsqueda de álbumes para apps nuevas y tag:new/tag:hipster devuelven
+    ruido. Cruza el resultado con music_press antes de recomendar nada.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
     _require_lastfm(lf)
-    key = f"emerg:{','.join(genres)}:{max_popularity}"
+    key = f"emerg:{','.join(genres)}:{max_listeners}:{months}:{deep_page}"
     return _cached(key, lambda: explore.emerging(
-        sp, lf, genres, _known(sp, lf, sf), max_popularity, limit))
+        sp, lf, genres, _known(sp, lf, sf), max_listeners, months, limit, deep_page))
 
 
 @mcp.tool()

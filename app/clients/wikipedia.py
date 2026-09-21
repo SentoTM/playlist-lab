@@ -11,7 +11,8 @@ from urllib.parse import quote
 import httpx
 
 log = logging.getLogger("playlist_lab.wikipedia")
-HEADERS = {"User-Agent": "playlist-lab/0.2 (uso personal)"}
+HEADERS = {"User-Agent": "playlist-lab/0.2 (herramienta personal; https://github.com/SentoTM/playlist-lab)",
+           "Accept": "application/json"}
 
 
 class WikipediaClient:
@@ -57,9 +58,11 @@ class WikipediaClient:
         `hint` acota la búsqueda ('banda', 'álbum', 'género musical') para no
         acabar en el artículo equivocado cuando el nombre es ambiguo.
         """
+        intentos = [f"{query} {hint}".strip(), query] if hint else [query]
         for lang in self.langs:
-            for result in self._search(lang, f"{query} {hint}".strip(), 3):
-                summary = self._summary(lang, result["title"])
-                if summary and summary.get("resumen"):
-                    return summary
+            for consulta in intentos:
+                for result in self._search(lang, consulta, 3):
+                    summary = self._summary(lang, result["title"])
+                    if summary and summary.get("resumen"):
+                        return summary
         return {}

@@ -5,6 +5,7 @@ usuario ya conoce al artista. Ninguna decide: el criterio, el canon y el
 relato los pone la IA que conversa. Lo que aportan es lo que un modelo no
 puede saber (qué ha escuchado él) o suele inventarse (años, audiencias).
 """
+import datetime as dt
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
@@ -91,48 +92,79 @@ def era(mb: MusicbrainzClient, sp: SpotifyClient, genre_name: str,
 
 
 def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
-             known: dict, max_popularity: int = 45, limit: int = 60) -> dict:
-    """Bandas emergentes: publicación reciente y audiencia todavía pequeña.
+             known: dict, max_listeners: int = 150_000, months: int = 18,
+             limit: int = 40, deep_page: int = 2) -> dict:
+    """Bandas emergentes: de un género, con poca audiencia y activas ahora.
 
-    Combina los filtros oficiales de Spotify (tag:new para lo recién salido,
-    tag:hipster para el 10 % menos popular del catálogo) y descarta lo que ya
-    conoces y lo que ya es grande.
+    Por qué así: Spotify ha dejado de devolver `genres` y `popularity` en las
+    búsquedas de apps nuevas, y `genre:` ya no filtra álbumes, así que sus
+    filtros tag:new/tag:hipster solo devuelven ruido de bedroom producers.
+    La pertenencia a un género la da mejor Last.fm (lo que la gente etiqueta)
+    y el tamaño, su número de oyentes. `deep_page` salta las primeras páginas
+    del ranking: ahí están los nombres grandes, y lo interesante está detrás.
     """
-    def fetch(g: str) -> list[dict]:
-        out = sp.search_albums_filtered(genre=g, new=True, limit=40)
-        out += sp.search_albums_filtered(genre=g, hipster=True, limit=40)
-        return out
+    cutoff = (dt.date.today() - dt.timedelta(days=months * 31)).isoformat()
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        batches = list(pool.map(fetch, genres[:6]))
+    candidatos: list[str] = []
+    for g in genres[:4]:
+        for page in range(deep_page, deep_page + 2):
+            for a in lf.tag_top_artists(g, 50, page):
+                if norm(a["name"]) not in known:
+                    candidatos.append(a["name"])
+    vistos, unicos = set(), []
+    for c in candidatos:
+        if norm(c) not in vistos:
+            vistos.add(norm(c))
+            unicos.append(c)
 
-    seen, rows, artist_ids = set(), [], {}
-    for albums in batches:
-        for a in albums:
-            row = _album_row(a, known)
-            if not row["artist"] or row["lo_conoces"] or a.get("id") in seen:
-                continue
-            seen.add(a.get("id"))
-            rows.append(row)
-            aid = (a.get("artists") or [{}])[0].get("id")
-            if aid:
-                artist_ids.setdefault(aid, []).append(row)
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        infos = list(pool.map(lf.artist_info, unicos[:limit * 2]))
 
-    for art in sp.artists_by_id(list(artist_ids)):
-        for row in artist_ids.get(art["id"], []):
-            row["popularidad"] = art.get("popularity")
-            row["seguidores"] = (art.get("followers") or {}).get("total")
-            row["generos"] = art.get("genres", [])[:4]
+    pequenos = [(n, i) for n, i in zip(unicos, infos)
+                if i and 0 < i.get("listeners", 0) <= max_listeners]
+    pequenos.sort(key=lambda x: x[1]["listeners"])
 
-    rows = [r for r in rows
-            if r.get("popularidad") is None or r["popularidad"] <= max_popularity]
-    rows.sort(key=lambda r: (r.get("popularidad") or 99, r["date"]), reverse=False)
+    def ultimo_disco(name: str) -> dict | None:
+        found = sp.search_artist(name, limit=1)
+        if not found:
+            return None
+        albums = [a for a in sp.artist_albums(found[0]["id"], limit=20)
+                  if a.get("album_type") in ("album", "single")]
+        if not albums:
+            return None
+        ultimo = max(albums, key=lambda a: a.get("release_date", ""))
+        return {"album": ultimo.get("name"), "fecha": ultimo.get("release_date"),
+                "tipo": ultimo.get("album_type"), "id": ultimo.get("id")}
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        discos = list(pool.map(ultimo_disco, [n for n, _ in pequenos[:limit]]))
+
+    activos, dormidos, sin_spotify = [], [], []
+    for (name, info), disco in zip(pequenos[:limit], discos):
+        row = {"artist": info["artist"], "oyentes": info["listeners"],
+               "escuchas_por_oyente": info["escuchas_por_oyente"],
+               "tags": info["tags"], "ultimo_disco": disco,
+               "bio": info["bio"][:280]}
+        if disco is None:
+            sin_spotify.append(row)
+        elif (disco["fecha"] or "") >= cutoff:
+            activos.append(row)
+        else:
+            dormidos.append(row)
+
+    activos.sort(key=lambda r: r["ultimo_disco"]["fecha"], reverse=True)
     return {
-        "generos_buscados": genres[:6], "max_popularidad": max_popularity,
-        "candidatos": rows[:limit],
-        "nota": ("Popularidad de Spotify 0-100: por debajo de 30 es "
-                 "realmente pequeño. Que sea nuevo y desconocido no lo hace "
-                 "bueno; filtra tú y contrasta con music_press."),
+        "generos_buscados": genres[:4],
+        "criterio": (f"Artistas etiquetados en esos géneros en Last.fm (a partir "
+                     f"de la página {deep_page} del ranking, saltando los "
+                     f"grandes), con {max_listeners:,} oyentes o menos y que no "
+                     f"conoces."),
+        "activos": activos,
+        "sin_disco_reciente": dormidos[:15],
+        "no_estan_en_spotify": [r["artist"] for r in sin_spotify],
+        "nota": ("'Activos' = han publicado algo desde " + cutoff + ". Que sea "
+                 "pequeño y reciente no lo hace bueno: contrasta con "
+                 "music_press y con tu propio criterio antes de proponerlo."),
     }
 
 

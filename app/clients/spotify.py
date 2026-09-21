@@ -22,6 +22,8 @@ SCOPES = " ".join([
     "user-top-read",
     "user-library-read",
     "user-read-recently-played",
+    "user-follow-read",
+    "user-read-currently-playing",
     "playlist-modify-private",
     "playlist-modify-public",
     "playlist-read-private",
@@ -172,6 +174,83 @@ class SpotifyClient:
         items = self._get("/me/tracks", limit=limit, offset=offset).get("items", [])
         return [i["track"] for i in items if i.get("track")]
 
+    def all_saved_tracks(self, max_items: int = 600) -> list[dict]:
+        """Toda tu biblioteca de canciones guardadas (paginando)."""
+        out = []
+        for offset in range(0, max_items, 50):
+            batch = self.saved_tracks(50, offset)
+            out.extend(batch)
+            if len(batch) < 50:
+                break
+        return out
+
+    def saved_albums(self, max_items: int = 300) -> list[dict]:
+        """Álbumes guardados, con la fecha en que los guardaste."""
+        out = []
+        for offset in range(0, max_items, 50):
+            items = self._get("/me/albums", limit=50, offset=offset).get("items", [])
+            for i in items:
+                a = i.get("album") or {}
+                if a:
+                    a["_added_at"] = i.get("added_at", "")
+                    out.append(a)
+            if len(items) < 50:
+                break
+        return out
+
+    def my_playlists(self, max_items: int = 200) -> list[dict]:
+        """Tus playlists (incluidas las que sigues)."""
+        out = []
+        for offset in range(0, max_items, 50):
+            items = self._get("/me/playlists", limit=50, offset=offset).get("items", [])
+            out.extend([i for i in items if i])
+            if len(items) < 50:
+                break
+        return out
+
+    def playlist_tracks(self, playlist_id: str, max_items: int = 200) -> list[dict]:
+        out = []
+        for offset in range(0, max_items, 100):
+            items = self._get(f"/playlists/{playlist_id}/tracks",
+                              limit=100, offset=offset).get("items", [])
+            out.extend([i["track"] for i in items if i.get("track")])
+            if len(items) < 100:
+                break
+        return out
+
+    def followed_artists(self, max_items: int = 300) -> list[dict]:
+        """Artistas que sigues. Requiere el permiso user-follow-read: si el
+        token es anterior a añadirlo, devuelve [] en vez de fallar."""
+        out, after = [], None
+        try:
+            while len(out) < max_items:
+                params = {"type": "artist", "limit": 50}
+                if after:
+                    params["after"] = after
+                data = self._request("GET", "/me/following", params=params
+                                     ).get("artists", {})
+                items = data.get("items", [])
+                out.extend(items)
+                after = (data.get("cursors") or {}).get("after")
+                if not after or not items:
+                    break
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (401, 403):
+                log.warning("Sin permiso user-follow-read: vuelve a hacer login")
+                return []
+            raise
+        return out
+
+    def currently_playing(self) -> dict | None:
+        """Qué suena ahora mismo (o None). Requiere user-read-currently-playing."""
+        try:
+            data = self._request("GET", "/me/player/currently-playing")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (401, 403, 404):
+                return None
+            raise
+        return (data or {}).get("item")
+
     _top_tracks_forbidden = False  # Spotify devuelve 403 a las apps nuevas (2026)
 
     def artist_top_tracks(self, artist_id: str, market: str = "from_token",
@@ -238,18 +317,20 @@ class SpotifyClient:
         return self._get("/search", q=query, type="album", limit=limit).get(
             "albums", {}).get("items", [])
 
-    def search_albums_filtered(self, genre: str = "", year: str = "",
+    def search_albums_filtered(self, text: str = "", year: str = "",
                                hipster: bool = False, new: bool = False,
                                limit: int = 50, offset: int = 0) -> list[dict]:
-        """Búsqueda de álbumes con los filtros oficiales de Spotify.
+        """Búsqueda de álbumes con los filtros de Spotify que aún funcionan.
 
-        `hipster` limita al 10 % menos popular del catálogo (tag:hipster) y
-        `new` a lo publicado en las últimas semanas (tag:new). `year` admite
-        un año o un rango ('1978-1985').
+        OJO: `genre:` ya no filtra en búsqueda de álbumes para apps nuevas
+        (sep. 2026), y `tag:new`/`tag:hipster` con texto libre devuelven sobre
+        todo ruido. Para descubrir por género usa explore.emerging, que se
+        apoya en las etiquetas de Last.fm. Esto queda para el filtro `year:`,
+        que sí es fiable.
         """
         parts = []
-        if genre:
-            parts.append(f'genre:"{genre}"')
+        if text:
+            parts.append(text)
         if year:
             parts.append(f"year:{year}")
         if hipster:
