@@ -74,6 +74,69 @@ class MusicbrainzClient:
             }
         return None
 
+    def artist_relations(self, artist: str) -> dict:
+        """Formación y parentesco: miembros, grupos en los que también tocan
+        y de qué otros proyectos vienen. Es el mapa de una escena."""
+        a = self.find_artist(artist)
+        if not a:
+            return {}
+        data = self._get(f"/artist/{a['mbid']}", inc="artist-rels")
+        miembros, otros_grupos = [], []
+        for rel in data.get("relations", []):
+            target = (rel.get("artist") or {}).get("name")
+            if not target:
+                continue
+            tipo = rel.get("type")
+            if tipo in ("member of band", "collaboration", "founder"):
+                (miembros if rel.get("direction") == "backward" else otros_grupos
+                 ).append({"nombre": target, "relacion": tipo,
+                           "desde": (rel.get("begin") or "")[:4],
+                           "hasta": (rel.get("end") or "")[:4]})
+        return {"artist": a["artist"], "miembros": miembros[:20],
+                "tambien_en": otros_grupos[:20]}
+
+    def artists_from(self, area: str, tag: str = "", limit: int = 40) -> list[dict]:
+        """Artistas de un país o ciudad, opcionalmente filtrados por etiqueta.
+
+        `area` admite país ('Spain'), ciudad ('Manchester') o región.
+        """
+        query = f'area:"{area}"' + (f' AND tag:"{tag}"' if tag else "")
+        data = self._get("/artist", query=query, limit=limit)
+        out = []
+        for a in data.get("artists", []):
+            span = a.get("life-span") or {}
+            out.append({
+                "artist": a.get("name"),
+                "desambiguacion": a.get("disambiguation"),
+                "zona": ((a.get("begin-area") or {}).get("name")
+                         or (a.get("area") or {}).get("name")),
+                "activo_desde": (span.get("begin") or "")[:4],
+                "separado": bool(span.get("ended")),
+                "tags": [t["name"] for t in (a.get("tags") or [])[:5]],
+            })
+        return out
+
+    def releases_by_tag(self, tag: str, year_from: int | None = None,
+                        year_to: int | None = None, limit: int = 60) -> list[dict]:
+        """Álbumes de un género en una franja de años, por fecha real de
+        publicación (no la de la reedición que devuelve Spotify)."""
+        query = f'tag:"{tag}" AND primarytype:album'
+        if year_from or year_to:
+            query += f' AND firstreleasedate:[{year_from or 1900} TO {year_to or 2100}]'
+        data = self._get("/release-group", query=query, limit=limit)
+        out = []
+        for rg in data.get("release-groups", []):
+            if rg.get("secondary-types"):
+                continue
+            out.append({
+                "artist": ", ".join(c["name"] for c in (rg.get("artist-credit") or [])
+                                    if isinstance(c, dict) and c.get("name")),
+                "album": rg.get("title"),
+                "fecha": rg.get("first-release-date"),
+            })
+        out.sort(key=lambda r: r["fecha"] or "")
+        return out
+
     def discography(self, artist: str, limit: int = 50) -> list[dict]:
         """Álbumes de estudio del artista, por fecha. Detecta huecos y rarezas."""
         a = self.find_artist(artist)

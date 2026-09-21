@@ -18,18 +18,20 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import discovery, library, taste            # noqa: E402
+from app import discovery, explore, library, taste   # noqa: E402
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.press import FEEDS, PressClient     # noqa: E402
 from app.clients.spotify import SpotifyClient        # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
+from app.clients.wikipedia import WikipediaClient    # noqa: E402
 from app.text import norm                            # noqa: E402
 
 PORT = os.getenv("PORT", "8888")
 mcp = FastMCP("playlist-lab", host="127.0.0.1", port=8877)
 press = PressClient()
 mb = MusicbrainzClient()
+wiki = WikipediaClient()
 
 _cache: dict = {}
 CACHE_TTL = 1800  # 30 min: los tops no cambian en una conversación
@@ -44,6 +46,17 @@ def _clients() -> tuple[SpotifyClient, LastfmClient | None, StatsfmClient | None
     sf = (StatsfmClient(os.getenv("STATSFM_USERNAME", ""))
           if os.getenv("STATSFM_USERNAME") else None)
     return sp, lf, sf
+
+
+def _require_lastfm(lf: LastfmClient | None) -> LastfmClient:
+    if not lf:
+        raise RuntimeError("Last.fm no configurado (LASTFM_API_KEY en .env): "
+                           "sin él no hay mapa de géneros ni escenas.")
+    return lf
+
+
+def _known(sp, lf, sf) -> dict:
+    return _cached("known", lambda: taste.known_artists(sp, lf, sf))
 
 
 def _require_auth(sp: SpotifyClient):
@@ -266,6 +279,110 @@ def verify(artist: str, album: str = "", discography: bool = False) -> dict:
     return out
 
 
+# ---------- exploración ----------
+
+@mcp.tool()
+def explore_genre(genre: str, depth: int = 60, only_unknown: bool = False) -> dict:
+    """Mapa de un género: qué es, de dónde viene y quién lo puebla.
+
+    Junta la etiqueta de Last.fm (lo que la gente escucha de verdad bajo ese
+    nombre, con sus artistas y álbumes), el artículo de Wikipedia (origen e
+    historia) y marca cuáles ya conoce el usuario. Vale para subgéneros
+    finos: "coldwave", "slowcore", "egg punk", "rock urbano".
+
+    Lo que NO da es el canon ni las jerarquías: eso lo pones tú. La lista es
+    popularidad, no calidad. Para época concreta usa explore_era.
+    """
+    sp, lf, sf = _clients()
+    _require_auth(sp)
+    _require_lastfm(lf)
+    key = f"genre:{genre}:{depth}:{only_unknown}"
+    return _cached(key, lambda: explore.genre(
+        lf, sp, wiki, mb, genre, _known(sp, lf, sf), depth, only_unknown))
+
+
+@mcp.tool()
+def explore_era(genre: str, year_from: int, year_to: int, limit: int = 60) -> dict:
+    """Recorrer los clásicos de un género en una franja de años.
+
+    Devuelve álbumes por FECHA DE PRIMERA PUBLICACIÓN según MusicBrainz, que
+    es lo que Spotify se come (allí una reedición de 1979 figura como 2015).
+    Ideal para "el post-punk del 78 al 85" o "indie español de los 90".
+    """
+    sp, lf, sf = _clients()
+    _require_auth(sp)
+    key = f"era:{genre}:{year_from}:{year_to}:{limit}"
+    return _cached(key, lambda: explore.era(
+        mb, sp, genre, year_from, year_to, _known(sp, lf, sf), limit))
+
+
+@mcp.tool()
+def discover_emerging(genres: list[str], max_popularity: int = 45,
+                      limit: int = 60) -> dict:
+    """Bandas emergentes: recién publicadas y aún con poca audiencia.
+
+    Usa los filtros oficiales de Spotify tag:new (lo recién salido) y
+    tag:hipster (el 10 % menos popular del catálogo), descarta lo que el
+    usuario ya conoce y lo que pasa de `max_popularity` (0-100; por debajo
+    de 30 es realmente pequeño).
+
+    Pásale géneros concretos de su perfil o de explore_genre. Que algo sea
+    nuevo y desconocido no lo hace bueno: cruza con music_press y filtra.
+    """
+    sp, lf, sf = _clients()
+    _require_auth(sp)
+    _require_lastfm(lf)
+    key = f"emerg:{','.join(genres)}:{max_popularity}"
+    return _cached(key, lambda: explore.emerging(
+        sp, lf, genres, _known(sp, lf, sf), max_popularity, limit))
+
+
+@mcp.tool()
+def find_underrated(artists: list[str]) -> dict:
+    """Distingue lo de culto de lo simplemente poco escuchado.
+
+    Para cada artista mira su audiencia en Last.fm y sus escuchas por
+    oyente: mucha escucha por poca gente = público pequeño y devoto, que es
+    lo que solemos llamar infravalorado. Pásale candidatos tuyos o salidos
+    de explore_genre / discover_emerging.
+    """
+    sp, lf, sf = _clients()
+    _require_lastfm(lf)
+    _require_auth(sp)
+    return explore.underrated(lf, sp, artists, _known(sp, lf, sf))
+
+
+@mcp.tool()
+def explore_scene(place: str, tag: str = "", limit: int = 40) -> dict:
+    """Viajar a un sitio: qué se escucha allí y qué grupos salieron de allí.
+
+    `place` en inglés para Last.fm ("Spain", "Japan", "Nigeria");
+    MusicBrainz admite además ciudades ("Manchester", "Bilbao"). `tag`
+    acota a un género dentro del lugar. Devuelve también el contexto de
+    Wikipedia sobre la escena.
+    """
+    sp, lf, sf = _clients()
+    _require_auth(sp)
+    _require_lastfm(lf)
+    key = f"scene:{place}:{tag}:{limit}"
+    return _cached(key, lambda: explore.scene(
+        lf, mb, wiki, place, tag, _known(sp, lf, sf), limit))
+
+
+@mcp.tool()
+def artist_context(artist: str) -> dict:
+    """Todo lo que se sabe de un artista, para poder explicarlo bien.
+
+    Biografía y audiencia (Last.fm), ficha y país (MusicBrainz), formación y
+    con qué otros grupos se cruza, historia (Wikipedia) y discografía real
+    por fecha. Úsalo antes de contarle a alguien por qué un grupo importa o
+    por dónde empezar con él, y para no inventarte fechas ni formaciones.
+    """
+    sp, lf, _ = _clients()
+    _require_lastfm(lf)
+    return _cached(f"ctx:{artist}", lambda: explore.context(lf, mb, wiki, sp, artist))
+
+
 # ---------- creación ----------
 
 @mcp.tool()
@@ -316,12 +433,28 @@ def curar_playlist(encargo: str = "") -> str:
 Método:
 1. Llama a taste_profile y lee con calma: fase actual, géneros principales, qué escucha ahora vs. históricamente.
 2. Piensa como un crítico que conoce escenas, sellos, discografías y reseñas (no como un algoritmo de similitud): busca artistas y discos que encajen con su gusto pero que probablemente no conozca, o que amplíen en una dirección coherente. Mezcla épocas y evita los nombres obvios salvo que el encargo lo pida. Tu criterio es el valor que aportas; las herramientas solo te dan los datos.
+2b. Si te faltan nombres, tira de las herramientas de exploración: explore_genre para el mapa de un género, explore_era para los clásicos de una franja, explore_scene para un lugar, discover_emerging para lo que acaba de salir y find_underrated para lo de culto.
 3. Si el encargo mira al presente (novedades, "lo último", este año), llama a new_releases y a music_press: tu conocimiento tiene fecha de corte y ahí es donde te equivocarás.
 4. Pasa tus candidatos por check_known y descarta los conocidos (o justifica incluirlos). similar_artists de Last.fm es solo una señal más, tiende a lo obvio.
 5. Antes de afirmar años, sellos o discografías, contrástalos con verify. Es preferible una frase menos a un dato inventado.
 6. Verifica con resolve que todo existe en Spotify (y con album_info las duraciones si es una playlist de álbumes: ~70 min máximo por disco).
 7. Presenta la propuesta con una frase por elección (por qué encaja y qué aporta) y pide confirmación.
 8. Solo entonces create_playlist. Nombre corto y descriptivo."""
+
+
+@mcp.prompt()
+def explorar(tema: str = "") -> str:
+    """Cómo guiar un viaje musical (género, época, escena o artista)."""
+    return f"""Actúa como un guía musical para este usuario. Tema: {tema or '(pregunta hacia dónde quiere viajar)'}
+
+No hagas una lista: cuenta una historia y que la lista salga de ella.
+
+1. Sitúa el terreno. Según el tema, explore_genre (qué es y quién lo puebla), explore_era (los clásicos de una franja de años, con fechas reales), explore_scene (un lugar y lo que salió de allí) o artist_context (un artista a fondo).
+2. Mira taste_profile para enganchar lo nuevo con lo que ya escucha: un viaje se entiende mejor desde casa. check_known te dice qué parte ya ha pisado.
+3. Aporta lo que las herramientas no tienen: por qué ese disco cambió algo, qué escuchaba la gente antes y después, qué grupo es el eslabón. Ese relato es tu trabajo; los datos solo lo sostienen.
+4. Si el tema mira al presente, discover_emerging y music_press. Si busca rarezas, find_underrated sobre tus sospechas.
+5. Contrasta con verify todo año, sello o formación antes de afirmarlo.
+6. Ofrece un recorrido corto (5-8 piezas o discos) con una frase por parada que diga qué escuchar en ella. Confirma antes de crear nada con create_playlist."""
 
 
 if __name__ == "__main__":

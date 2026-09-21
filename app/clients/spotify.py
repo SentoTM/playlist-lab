@@ -238,6 +238,39 @@ class SpotifyClient:
         return self._get("/search", q=query, type="album", limit=limit).get(
             "albums", {}).get("items", [])
 
+    def search_albums_filtered(self, genre: str = "", year: str = "",
+                               hipster: bool = False, new: bool = False,
+                               limit: int = 50, offset: int = 0) -> list[dict]:
+        """Búsqueda de álbumes con los filtros oficiales de Spotify.
+
+        `hipster` limita al 10 % menos popular del catálogo (tag:hipster) y
+        `new` a lo publicado en las últimas semanas (tag:new). `year` admite
+        un año o un rango ('1978-1985').
+        """
+        parts = []
+        if genre:
+            parts.append(f'genre:"{genre}"')
+        if year:
+            parts.append(f"year:{year}")
+        if hipster:
+            parts.append("tag:hipster")
+        if new:
+            parts.append("tag:new")
+        if not parts:
+            return []
+        return self._get("/search", q=" ".join(parts), type="album",
+                         limit=limit, offset=offset).get("albums", {}).get("items", [])
+
+    def artists_by_id(self, ids: list[str]) -> list[dict]:
+        """Varios artistas de una vez: popularidad, seguidores y géneros."""
+        out = []
+        for i in range(0, len(ids), 50):
+            chunk = [x for x in ids[i:i + 50] if x]
+            if not chunk:
+                continue
+            out.extend(self._get("/artists", ids=",".join(chunk)).get("artists", []))
+        return out
+
     def search_artist(self, query: str, limit: int = 3) -> list[dict]:
         return self._get("/search", q=query, type="artist", limit=limit).get(
             "artists", {}).get("items", [])

@@ -8,8 +8,8 @@ Centro de consulta y creación de playlists de Spotify **para usar conversando**
 
 - **Servidor MCP** (`mcp_server.py`) — herramientas de consulta y creación (abajo). Stdio para Claude Desktop y `--http` para ChatGPT vía túnel.
 - **Web mínima** (`app/main.py` + `static/index.html`, puerto 8888) — login OAuth PKCE de Spotify (una vez; token en `token.json`), estado de las fuentes, vista del perfil que ve la IA y el bloque de configuración del MCP listo para copiar.
-- **Clientes** (`app/clients/`) — Spotify (PKCE, degrada ante endpoints cerrados), Last.fm, stats.fm (API interna, best-effort; validada sep. 2026), MusicBrainz (verificación de datos) y prensa por RSS.
-- `app/taste.py` — perfil de gustos y artistas conocidos. `app/library.py` — búsqueda, resolución de "Artista – Canción/Álbum" y creación. `app/discovery.py` — novedades de tu órbita.
+- **Clientes** (`app/clients/`) — Spotify (PKCE, degrada ante endpoints cerrados), Last.fm (escuchas y mapa social), stats.fm (API interna, best-effort; validada sep. 2026), MusicBrainz (datos verificables), Wikipedia (contexto) y prensa por RSS.
+- `app/taste.py` — perfil de gustos y artistas conocidos. `app/library.py` — búsqueda, resolución de "Artista – Canción/Álbum" y creación. `app/discovery.py` — novedades de tu órbita. `app/explore.py` — los modos de viaje.
 
 ### El reparto de papeles
 
@@ -62,12 +62,25 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `music_press` | reseñas y noticias recientes (Pitchfork, Quietus, Bandcamp Daily, Mondo Sonoro, Jenesaispop, Stereogum, BrooklynVegan) |
 | `verify` | año real, sello, actividad y discografía según MusicBrainz |
 
+| Exploración | |
+|---|---|
+| `explore_genre` | qué es un género, de dónde viene y quién lo puebla (incluye subgéneros finos) |
+| `explore_era` | los clásicos de un género en una franja de años, por fecha de primera edición |
+| `discover_emerging` | bandas recién publicadas y aún pequeñas (filtros `tag:new` / `tag:hipster` de Spotify) |
+| `find_underrated` | separa lo de culto (público pequeño y devoto) de lo simplemente poco escuchado |
+| `explore_scene` | qué se escucha en un país y qué grupos salieron de allí |
+| `artist_context` | bio, ficha, formación, historia y discografía real de un artista |
+
 | Creación | |
 |---|---|
 | `resolve` | verifica una propuesta ("Artista – Canción" / "Artista – Álbum") sin crear nada |
 | `create_playlist` | crea la playlist con canciones y/o álbumes completos; informa de lo no encontrado |
 
-Y el prompt `curar_playlist`, con el método: leer el perfil → proponer como un crítico (no como un algoritmo) → filtrar conocidos → verificar en Spotify → presentar y confirmar → crear.
+Dos prompts guían el uso: `curar_playlist` (leer el perfil → proponer como un crítico, no como un algoritmo → filtrar conocidos → verificar → presentar y confirmar → crear) y `explorar` (situar el terreno → engancharlo con lo que ya escuchas → contar por qué importa → proponer un recorrido corto).
+
+### Por qué estas fuentes y no AOTY o RateYourMusic
+
+Ninguna de las dos tiene API pública; lo que circula son *scrapers* no oficiales, y en el caso de RYM sus términos lo prohíben expresamente. Además, lo que las hace atractivas ya está cubierto: el **canon** de un género lo tiene el modelo de serie, la **actualidad y la crítica** vienen de `music_press` (las mismas fuentes que esos sitios agregan, de primera mano) y el **mapa del género** lo dan las etiquetas de Last.fm con API legítima. Si algún día hicieran falta subgéneros aún más finos, la vía limpia sería la API oficial de Discogs y sus *styles*.
 
 Ejemplos de encargos: *«5 discos de post-punk actual que no conozca, máximo 70 min cada uno»*, *«una playlist de rock español de los 90 que me falte, vista mi fase Vetusta/Sidonie»*, *«algo lejano a lo mío pero que un fan de IDLES pueda disfrutar»*, *«qué ha salido este mes que me pegue y qué dice la prensa»*.
 
@@ -77,4 +90,5 @@ Ejemplos de encargos: *«5 discos de post-punk actual que no conozca, máximo 70
 - Los clientes externos degradan con gracia (listas vacías + aviso) en vez de tumbar la app. Spotify devuelve 403 en `/artists/{id}/top-tracks` a las apps nuevas; el cliente lo aproxima con búsqueda.
 - `scripts/diag_statsfm.py` diagnostica la API de stats.fm si deja de funcionar.
 - Los feeds de prensa se definen en `app/clients/press.py` (`FEEDS`): añadir o quitar uno es una línea. Si alguno deja de responder, `music_press` lo avisa y sigue con el resto.
-- MusicBrainz no pide clave, pero limita a 1 petición por segundo: el cliente lo respeta, así que `verify` con discografía tarda un par de segundos.
+- MusicBrainz no pide clave, pero limita a 1 petición por segundo: el cliente lo respeta, así que `verify`, `explore_era` y `artist_context` tardan unos segundos.
+- Las consultas pesadas (`taste_profile`, `new_releases`, `explore_*`) se cachean 30 minutos en memoria del servidor MCP.

@@ -1,7 +1,22 @@
-"""Cliente mínimo de la API de Last.fm (solo lectura, API key gratuita)."""
+"""Cliente de la API de Last.fm (solo lectura, API key gratuita).
+
+Dos usos distintos: saber qué ha escuchado el usuario (playcount de
+cualquier artista, insustituible) y explorar el mapa social de la música
+(etiquetas, países, artistas de culto).
+"""
+import re
+
 import httpx
 
 API = "https://ws.audioscrobbler.com/2.0/"
+_TAGS = re.compile(r"<[^>]+>")
+
+
+def _strip(text: str, limit: int = 600) -> str:
+    """Las bios de Last.fm vienen con HTML y una coletilla de enlace."""
+    text = _TAGS.sub("", text or "").split("Read more on Last.fm")[0]
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:limit] + ("…" if len(text) > limit else "")
 
 
 class LastfmClient:
@@ -58,6 +73,59 @@ class LastfmClient:
             "artist": t.get("artist", {}).get("name", ""),
             "playcount": int(t.get("playcount", 0)),
         } for t in items if t.get("name")]
+
+    def tag_info(self, tag: str) -> dict:
+        """Descripción y tamaño de una etiqueta/género según la comunidad."""
+        try:
+            data = self._get("tag.getInfo", tag=tag)
+        except (httpx.HTTPError, RuntimeError):
+            return {}
+        t = data.get("tag") or {}
+        wiki = (t.get("wiki") or {}).get("summary", "")
+        return {"tag": t.get("name"), "reach": t.get("reach"),
+                "total": t.get("total"), "resumen": _strip(wiki)}
+
+    def tag_top_artists(self, tag: str, limit: int = 50, page: int = 1) -> list[dict]:
+        """Artistas más escuchados de una etiqueta (el 'mapa' del género)."""
+        try:
+            data = self._get("tag.getTopArtists", tag=tag, limit=limit, page=page)
+        except (httpx.HTTPError, RuntimeError):
+            return []
+        items = data.get("topartists", {}).get("artist", [])
+        return [{"name": a.get("name", "")} for a in items if a.get("name")]
+
+    def geo_top_artists(self, country: str, limit: int = 50, page: int = 1) -> list[dict]:
+        """Artistas más escuchados de un país (nombre en inglés: 'Spain', 'Japan')."""
+        try:
+            data = self._get("geo.getTopArtists", country=country, limit=limit, page=page)
+        except (httpx.HTTPError, RuntimeError):
+            return []
+        items = data.get("topartists", {}).get("artist", [])
+        return [{"name": a.get("name", ""),
+                 "listeners": int(a.get("listeners", 0) or 0)}
+                for a in items if a.get("name")]
+
+    def artist_info(self, artist: str) -> dict:
+        """Biografía, audiencia, etiquetas y similares. `playcount/listeners`
+        alto = público pequeño pero devoto (señal de culto/infravalorado)."""
+        try:
+            data = self._get("artist.getInfo", artist=artist, autocorrect=1)
+        except (httpx.HTTPError, RuntimeError):
+            return {}
+        a = data.get("artist") or {}
+        stats = a.get("stats") or {}
+        listeners = int(stats.get("listeners", 0) or 0)
+        playcount = int(stats.get("playcount", 0) or 0)
+        bio = (a.get("bio") or {}).get("summary", "")
+        return {
+            "artist": a.get("name"),
+            "listeners": listeners,
+            "playcount": playcount,
+            "escuchas_por_oyente": round(playcount / listeners, 1) if listeners else 0,
+            "tags": [t["name"] for t in (a.get("tags") or {}).get("tag", [])][:8],
+            "similares": [x["name"] for x in (a.get("similar") or {}).get("artist", [])][:8],
+            "bio": _strip(bio),
+        }
 
     def tag_top_albums(self, tag: str, limit: int = 50, page: int = 1) -> list[dict]:
         """Álbumes más escuchados globalmente para un tag/género."""
