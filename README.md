@@ -8,8 +8,14 @@ Centro de consulta y creación de playlists de Spotify **para usar conversando**
 
 - **Servidor MCP** (`mcp_server.py`) — herramientas de consulta y creación (abajo). Stdio para Claude Desktop y `--http` para ChatGPT vía túnel.
 - **Web mínima** (`app/main.py` + `static/index.html`, puerto 8888) — login OAuth PKCE de Spotify (una vez; token en `token.json`), estado de las fuentes, vista del perfil que ve la IA y el bloque de configuración del MCP listo para copiar.
-- **Clientes** (`app/clients/`) — Spotify (PKCE, degrada ante endpoints cerrados), Last.fm (API pública) y stats.fm (API interna, best-effort; validada sep. 2026).
-- `app/taste.py` — perfil de gustos y artistas conocidos. `app/library.py` — búsqueda, resolución de "Artista – Canción/Álbum" y creación.
+- **Clientes** (`app/clients/`) — Spotify (PKCE, degrada ante endpoints cerrados), Last.fm, stats.fm (API interna, best-effort; validada sep. 2026), MusicBrainz (verificación de datos) y prensa por RSS.
+- `app/taste.py` — perfil de gustos y artistas conocidos. `app/library.py` — búsqueda, resolución de "Artista – Canción/Álbum" y creación. `app/discovery.py` — novedades de tu órbita.
+
+### El reparto de papeles
+
+El **criterio** lo pone el modelo: escenas, discografías, crítica, por qué dos grupos se parecen. Eso no se replica con reglas ni con bases de datos, y es lo que hace que las propuestas sean buenas. La **app** aporta lo que el modelo no puede saber: qué escuchas tú (Spotify, stats.fm), si conoces a un artista concreto aunque lo hayas oído cuatro veces (Last.fm), qué ha salido hace poco cerca de tu órbita (`new_releases`), qué se está reseñando ahora (`music_press`, la fecha de corte del modelo deja de importar) y si un año o un sello son ciertos (`verify` contra MusicBrainz, que es justo lo que un modelo inventa con aplomo).
+
+Last.fm queda fuera de `taste_profile` a propósito: scrobleando solo desde Spotify, sus tops duplicaban los de Spotify. Se usa donde es irreemplazable, el playcount de cualquier artista.
 
 ## Puesta en marcha
 
@@ -52,6 +58,9 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `similar_artists` | similares según Last.fm, filtrando conocidos |
 | `search` | búsqueda en Spotify (álbum/canción/artista, con filtros `year:`, `genre:`) |
 | `album_info` | año, duración y pistas de un álbum |
+| `new_releases` | discos recientes de tu órbita, separando "de los tuyos" y "alrededor" |
+| `music_press` | reseñas y noticias recientes (Pitchfork, Quietus, Bandcamp Daily, Mondo Sonoro, Jenesaispop, Stereogum, BrooklynVegan) |
+| `verify` | año real, sello, actividad y discografía según MusicBrainz |
 
 | Creación | |
 |---|---|
@@ -60,10 +69,12 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 
 Y el prompt `curar_playlist`, con el método: leer el perfil → proponer como un crítico (no como un algoritmo) → filtrar conocidos → verificar en Spotify → presentar y confirmar → crear.
 
-Ejemplos de encargos: *«5 discos de post-punk actual que no conozca, máximo 70 min cada uno»*, *«una playlist de rock español de los 90 que me falte, vista mi fase Vetusta/Sidonie»*, *«algo lejano a lo mío pero que un fan de IDLES pueda disfrutar»*.
+Ejemplos de encargos: *«5 discos de post-punk actual que no conozca, máximo 70 min cada uno»*, *«una playlist de rock español de los 90 que me falte, vista mi fase Vetusta/Sidonie»*, *«algo lejano a lo mío pero que un fan de IDLES pueda disfrutar»*, *«qué ha salido este mes que me pegue y qué dice la prensa»*.
 
 ## Notas
 
 - `token.json` y `.env` contienen credenciales: están en `.gitignore`.
 - Los clientes externos degradan con gracia (listas vacías + aviso) en vez de tumbar la app. Spotify devuelve 403 en `/artists/{id}/top-tracks` a las apps nuevas; el cliente lo aproxima con búsqueda.
 - `scripts/diag_statsfm.py` diagnostica la API de stats.fm si deja de funcionar.
+- Los feeds de prensa se definen en `app/clients/press.py` (`FEEDS`): añadir o quitar uno es una línea. Si alguno deja de responder, `music_press` lo avisa y sigue con el resto.
+- MusicBrainz no pide clave, pero limita a 1 petición por segundo: el cliente lo respeta, así que `verify` con discografía tarda un par de segundos.

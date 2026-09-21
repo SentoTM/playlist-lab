@@ -18,14 +18,18 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import library, taste                       # noqa: E402
+from app import discovery, library, taste            # noqa: E402
 from app.clients.lastfm import LastfmClient          # noqa: E402
+from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
+from app.clients.press import FEEDS, PressClient     # noqa: E402
 from app.clients.spotify import SpotifyClient        # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
 from app.text import norm                            # noqa: E402
 
 PORT = os.getenv("PORT", "8888")
 mcp = FastMCP("playlist-lab", host="127.0.0.1", port=8877)
+press = PressClient()
+mb = MusicbrainzClient()
 
 _cache: dict = {}
 CACHE_TTL = 1800  # 30 min: los tops no cambian en una conversación
@@ -204,6 +208,64 @@ def album_info(artist: str, album: str) -> dict:
     return library.album_details(sp, a["id"])
 
 
+@mcp.tool()
+def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
+    """Discos publicados hace poco DENTRO de su órbita musical.
+
+    Cruza los últimos lanzamientos de sus artistas, de los vecinos de estos
+    (Last.fm) y de las novedades de Spotify, y los separa en `de_los_tuyos`
+    (artistas que ya escucha) y `alrededor` (artistas que aún no conoce, que
+    es donde suele estar lo interesante). Tarda ~20-40 s; se cachea 30 min.
+
+    Esto es lo que una búsqueda web no te da: novedades filtradas por ÉL.
+    Para contexto y crítica de esas novedades, combínalo con music_press.
+    """
+    sp, lf, sf = _clients()
+    _require_auth(sp)
+    known = _cached("known", lambda: taste.known_artists(sp, lf, sf))
+    key = f"new:{months}:{include_known_artists}"
+    return _cached(key, lambda: discovery.new_releases(
+        sp, lf, sf, known, months, include_known_artists))
+
+
+@mcp.tool()
+def music_press(sources: list[str] = [], since_days: int = 21,
+                limit_per_source: int = 8) -> dict:
+    """Artículos y reseñas recientes de la prensa musical (RSS).
+
+    Tu conocimiento tiene fecha de corte: usa esto para saber qué se ha
+    publicado y reseñado últimamente antes de hablar de novedades.
+    sources (vacío = todas): """ + ", ".join(FEEDS) + """.
+    Devuelve titular, fecha, resumen y enlace. Se cachea 30 min.
+    """
+    key = f"press:{','.join(sorted(sources))}:{since_days}:{limit_per_source}"
+    return _cached(key, lambda: press.fetch(sources or None, limit_per_source,
+                                            since_days))
+
+
+@mcp.tool()
+def verify(artist: str, album: str = "", discography: bool = False) -> dict:
+    """Comprueba datos en MusicBrainz antes de afirmarlos.
+
+    Con `artist` solo: país, años de actividad, si sigue en activo y
+    etiquetas. Con `album`: fecha de la PRIMERA publicación (no la
+    reedición), tipo y sello. Con discography=True: sus álbumes de estudio
+    ordenados por fecha.
+
+    Úsalo siempre que vayas a dar un año, un sello o una discografía: es
+    justo lo que un modelo tiende a inventarse.
+    """
+    out: dict = {"artist_info": mb.find_artist(artist)}
+    if album:
+        out["release"] = mb.find_release(artist, album)
+        if out["release"] is None:
+            out["nota"] = (f"MusicBrainz no encuentra '{album}' de {artist}: "
+                           "revisa el título o el nombre antes de afirmarlo.")
+    if discography:
+        out["discografia"] = mb.discography(artist)
+    return out
+
+
 # ---------- creación ----------
 
 @mcp.tool()
@@ -253,11 +315,13 @@ def curar_playlist(encargo: str = "") -> str:
 
 Método:
 1. Llama a taste_profile y lee con calma: fase actual, géneros principales, qué escucha ahora vs. históricamente.
-2. Piensa como un crítico que conoce escenas, sellos, discografías y reseñas (no como un algoritmo de similitud): busca artistas y discos que encajen con su gusto pero que probablemente no conozca, o que amplíen en una dirección coherente. Mezcla épocas y evita los nombres obvios salvo que el encargo lo pida.
-3. Pasa tus candidatos por check_known y descarta los conocidos (o justifica incluirlos). similar_artists de Last.fm es solo una señal más.
-4. Verifica con resolve que todo existe en Spotify (y con album_info duraciones si es una playlist de álbumes: ~70 min máximo por disco).
-5. Presenta la propuesta con una frase por elección (por qué encaja y qué aporta) y pide confirmación.
-6. Solo entonces create_playlist. Nombre corto y descriptivo."""
+2. Piensa como un crítico que conoce escenas, sellos, discografías y reseñas (no como un algoritmo de similitud): busca artistas y discos que encajen con su gusto pero que probablemente no conozca, o que amplíen en una dirección coherente. Mezcla épocas y evita los nombres obvios salvo que el encargo lo pida. Tu criterio es el valor que aportas; las herramientas solo te dan los datos.
+3. Si el encargo mira al presente (novedades, "lo último", este año), llama a new_releases y a music_press: tu conocimiento tiene fecha de corte y ahí es donde te equivocarás.
+4. Pasa tus candidatos por check_known y descarta los conocidos (o justifica incluirlos). similar_artists de Last.fm es solo una señal más, tiende a lo obvio.
+5. Antes de afirmar años, sellos o discografías, contrástalos con verify. Es preferible una frase menos a un dato inventado.
+6. Verifica con resolve que todo existe en Spotify (y con album_info las duraciones si es una playlist de álbumes: ~70 min máximo por disco).
+7. Presenta la propuesta con una frase por elección (por qué encaja y qué aporta) y pide confirmación.
+8. Solo entonces create_playlist. Nombre corto y descriptivo."""
 
 
 if __name__ == "__main__":

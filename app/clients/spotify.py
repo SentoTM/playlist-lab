@@ -209,6 +209,20 @@ class SpotifyClient:
             include_groups="album,single", limit=limit, market=market,
         ).get("items", [])
 
+    def new_releases(self, limit: int = 50, country: str | None = None) -> list[dict]:
+        """Novedades destacadas de Spotify. Puede estar cerrado (403) a apps
+        nuevas: en ese caso se devuelve [] y se tira de otras vías."""
+        try:
+            return self._request("GET", "/browse/new-releases",
+                                 params={"limit": limit, **({"country": country} if country else {})}
+                                 ).get("albums", {}).get("items", [])
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (400, 403, 404):
+                log.warning("Spotify %s en /browse/new-releases: se ignora",
+                            e.response.status_code)
+                return []
+            raise
+
     def album_tracks(self, album_id: str, limit: int = 50) -> list[dict]:
         return self._get(f"/albums/{album_id}/tracks", limit=limit).get("items", [])
 
