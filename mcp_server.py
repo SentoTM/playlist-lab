@@ -21,6 +21,8 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 from app import cache, discovery, explore, jobs, library, notes, taste  # noqa: E402
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
+from app.clients.kexp import KexpClient              # noqa: E402
+from app.clients.listenbrainz import ListenbrainzClient  # noqa: E402
 from app.clients.press import FEEDS, PressClient     # noqa: E402
 from app.clients.spotify import SpotifyClient, SpotifyRateLimited  # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
@@ -32,6 +34,8 @@ mcp = FastMCP("playlist-lab", host="127.0.0.1", port=8877)
 press = PressClient()
 mb = MusicbrainzClient()
 wiki = WikipediaClient()
+kexp = KexpClient()
+lb = ListenbrainzClient()
 
 _cache: dict = {}
 CACHE_TTL = 1800  # 30 min: los tops no cambian en una conversación
@@ -320,11 +324,18 @@ def similar_artists(artist: str, limit: int = 15, only_unknown: bool = True) -> 
 
     Con only_unknown=True se descartan los que el usuario ya conoce.
     Contrasta el resultado con tu propio criterio: Last.fm tiende a lo obvio.
+    Se añaden los de ListenBrainz cuando están disponibles, que calculan la
+    similitud por co-escucha real y suelen sacar nombres menos evidentes.
     """
     sp, lf, sf = _clients()
     if not lf:
         raise RuntimeError("Last.fm no configurado")
     sims = lf.similar_artists(artist, limit * 2 if only_unknown else limit)
+    ficha = mb.find_artist(artist)
+    for otro in lb.similares(ficha["mbid"] if ficha else "", limit):
+        if not any(norm(s["name"]) == norm(otro["artist"]) for s in sims):
+            sims.append({"name": otro["artist"], "match": otro.get("afinidad"),
+                         "fuente": "listenbrainz"})
     if only_unknown:
         _require_auth(sp)
         known = _known(sp, lf, sf)
@@ -533,6 +544,101 @@ def artist_releases(artist: str, limit: int = 20) -> dict:
         {"album": a.get("name"), "fecha": a.get("release_date"),
          "tipo": a.get("album_type"), "canciones": a.get("total_tracks"),
          "id": a.get("id")} for a in albums]}
+
+
+@mcp.tool()
+def radio_tastemaker(desde_dias: int = 7, solo_desconocidos: bool = True) -> dict:
+    """Qué está pinchando KEXP ahora mismo: curación humana, no algoritmo.
+
+    Una emisora con criterio decide cada semana a quién apoyar, y lo hace
+    ANTES de que existan cifras. Por eso es la mejor fuente gratuita para
+    bandas emergentes: un grupo con 3.000 oyentes que suena tres veces en
+    una semana en KEXP es una señal real.
+
+    Devuelve el ranking de lo más emitido con un ejemplo de canción, disco y
+    SELLO (útil: el sello suele llevar a la escena entera). Con
+    `solo_desconocidos` se quitan los que el usuario ya conoce.
+
+    No gasta cuota de Spotify. Se cachea 3 h.
+    """
+    sp, lf, sf = _clients()
+    key = f"kexp:{desde_dias}"
+    ranking = cache.recordar(
+        key, 3 * 3600, lambda: kexp.artistas_mas_pinchados(desde_dias))
+    if not ranking:
+        return {"error": "KEXP no ha devuelto datos ahora mismo",
+                "nota": "Puede ser un corte puntual de su API; reintenta luego."}
+    if solo_desconocidos:
+        conocidos = _known(sp, lf, sf)
+        ranking = [r for r in ranking if norm(r["artist"]) not in conocidos]
+    return {"desde_dias": desde_dias, "fuente": "KEXP (api.kexp.org)",
+            "artistas": ranking,
+            "nota": ("Que KEXP lo pinche no garantiza que le guste, pero sí "
+                     "que alguien con criterio lo ha elegido. Cruza con "
+                     "find_underrated y con tu propio juicio.")}
+
+
+@mcp.tool()
+def played_on_radio(artist: str) -> dict:
+    """¿KEXP ha pinchado a este artista? Aval humano para un desconocido.
+
+    Úsalo al evaluar un candidato pequeño: si una emisora con criterio lo ha
+    emitido varias veces, deja de ser un nombre al azar.
+    """
+    emisiones = kexp.emisiones_de(artist)
+    return {"artist": artist, "veces": len(emisiones), "emisiones": emisiones[:15],
+            "nota": ("Sin emisiones no significa nada malo: KEXP es una sola "
+                     "emisora, con su propio sesgo hacia el rock anglosajón.")}
+
+
+@mcp.tool()
+def label_catalog(label: str, desde: str = "") -> dict:
+    """Qué publica un sello. Un sello es un filtro de gusto humano.
+
+    Si te gustan tres discos de un sello, el cuarto tiene papeletas: los
+    sellos agrupan por afinidad real, no por algoritmo. Especialmente útil
+    con el indie británico, donde las escenas se organizan por sello
+    (Speedy Wunderground, Nice Swan, Rough Trade, Partisan...).
+
+    `desde` en formato YYYY-MM-DD para ver solo lo reciente.
+    """
+    return mb.catalogo_sello(label, desde)
+
+
+@mcp.tool()
+def labels_of(artist: str, album: str = "") -> dict:
+    """Con qué sellos publica un artista: la puerta de entrada a su escena.
+
+    Flujo típico: te gusta una banda → labels_of para saber quién la publica
+    → label_catalog para ver a sus compañeros de sello.
+    """
+    sellos = mb.sellos_de(artist, album)
+    return {"artist": artist, "sellos": sellos,
+            "siguiente_paso": ("Usa label_catalog con uno de estos sellos para "
+                               "ver a sus compañeros de catálogo")
+            if sellos else "MusicBrainz no tiene sellos para este artista"}
+
+
+@mcp.tool()
+def fresh_releases(dias: int = 21, solo_desconocidos: bool = True) -> dict:
+    """Lanzamientos recientes según ListenBrainz (MetaBrainz), sin Spotify.
+
+    Es el listado general de novedades, no filtrado por su gusto: sirve para
+    ver qué ha salido en el mundo. Para novedades de SU órbita usa
+    new_releases, y para lo que la prensa destaca, music_press.
+    """
+    sp, lf, sf = _clients()
+    lanzamientos = cache.recordar(f"fresh:{dias}", 6 * 3600,
+                                  lambda: lb.novedades(dias))
+    if not lanzamientos:
+        return {"error": "ListenBrainz no devolvió novedades",
+                "alternativa": "Prueba music_press o new_releases"}
+    if solo_desconocidos:
+        conocidos = _known(sp, lf, sf)
+        lanzamientos = [r for r in lanzamientos
+                        if norm(r["artist"] or "") not in conocidos]
+    return {"desde_dias": dias, "fuente": "ListenBrainz",
+            "lanzamientos": lanzamientos[:60]}
 
 
 # ---------- exploración ----------

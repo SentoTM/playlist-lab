@@ -162,6 +162,54 @@ class MusicbrainzClient:
         out.sort(key=lambda r: r["fecha"] or "")
         return out
 
+    def buscar_sello(self, nombre: str) -> dict | None:
+        """Ficha de un sello: país, años y tipo."""
+        data = self._get("/label", query=f'label:"{nombre}"', limit=3)
+        for l in data.get("labels", []):
+            if l.get("score", 0) < 80:
+                continue
+            span = l.get("life-span") or {}
+            return {"sello": l.get("name"), "tipo": l.get("type"),
+                    "pais": l.get("country"), "desde": (span.get("begin") or "")[:4],
+                    "disambiguation": l.get("disambiguation"), "mbid": l.get("id")}
+        return None
+
+    def catalogo_sello(self, nombre: str, desde: str = "", limit: int = 60) -> dict:
+        """Qué publica un sello. Un buen sello es un filtro de gusto humano:
+        si te gustan tres de sus discos, el cuarto tiene papeletas."""
+        sello = self.buscar_sello(nombre)
+        if not sello:
+            return {"error": f"No encuentro el sello '{nombre}' en MusicBrainz"}
+        data = self._get("/release", label=sello["mbid"], limit=limit,
+                         inc="artist-credits")
+        vistos, salida = set(), []
+        for r in data.get("releases", []):
+            artista = ", ".join(c["artist"]["name"]
+                                for c in (r.get("artist-credit") or [])
+                                if isinstance(c, dict) and c.get("artist"))
+            fecha = r.get("date") or ""
+            clave = (artista.lower(), (r.get("title") or "").lower())
+            if clave in vistos or (desde and fecha < desde):
+                continue
+            vistos.add(clave)
+            salida.append({"artist": artista, "album": r.get("title"),
+                           "fecha": fecha, "pais": r.get("country")})
+        salida.sort(key=lambda r: r["fecha"] or "", reverse=True)
+        return {"sello": sello, "publicaciones": salida}
+
+    def sellos_de(self, artist: str, album: str = "") -> list[str]:
+        """Con qué sellos ha publicado un artista: la puerta de entrada a una
+        escena, porque los sellos agrupan por afinidad, no por algoritmo."""
+        consulta = f'artist:"{artist}"' + (f' AND release:"{album}"' if album else "")
+        data = self._get("/release", query=consulta, limit=25, inc="labels")
+        sellos: dict[str, int] = {}
+        for r in data.get("releases", []):
+            for info in r.get("label-info", []):
+                nombre = (info.get("label") or {}).get("name")
+                if nombre and nombre != "[no label]":
+                    sellos[nombre] = sellos.get(nombre, 0) + 1
+        return [n for n, _ in sorted(sellos.items(), key=lambda x: -x[1])][:8]
+
     def discography(self, artist: str, limit: int = 50) -> list[dict]:
         """Álbumes de estudio del artista, por fecha. Detecta huecos y rarezas."""
         a = self.find_artist(artist)
