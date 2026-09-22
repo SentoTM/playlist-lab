@@ -7,3 +7,6 @@ __pycache__/
 # salidas de prueba
 preview_salida.txt
 diag_spotify.txt
+
+# tus notas y opiniones: personales, no van al repo
+datos/

@@ -73,6 +73,13 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `find_underrated` | separa lo de culto (público pequeño y devoto) de lo simplemente poco escuchado |
 | `explore_scene` | qué se escucha en un país y qué grupos salieron de allí |
 | `artist_context` | bio, ficha, formación, historia y discografía real de un artista |
+| `artist_releases` | discografía en Spotify, de lo más nuevo a lo más viejo |
+
+| Tus opiniones | |
+|---|---|
+| `remember` | guarda lo que opinas de un artista, un disco o en general |
+| `my_notes` | todo lo juzgado hasta ahora, agrupado por veredicto |
+| `forget_note` | borra una nota cuando cambias de opinión |
 
 | Creación | |
 |---|---|
@@ -80,6 +87,19 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `create_playlist` | crea la playlist con canciones y/o álbumes completos; informa de lo no encontrado |
 
 Dos prompts guían el uso: `curar_playlist` (leer el perfil → proponer como un crítico, no como un algoritmo → filtrar conocidos → verificar → presentar y confirmar → crear) y `explorar` (situar el terreno → engancharlo con lo que ya escuchas → contar por qué importa → proponer un recorrido corto).
+
+### Tus opiniones
+
+Los datos de escucha dicen qué has puesto, no qué te pareció: un disco que
+odiaste tras una escucha y otro que no repites porque te lo sabes de memoria
+se ven idénticos desde fuera. `remember` guarda ese juicio —"me encanta", "me
+gusta", "no es lo mío", "nunca más", "pendiente"— con tus palabras y el
+motivo. Los dos veredictos negativos **vetan** al artista: deja de aparecer en
+las herramientas de descubrimiento, igual que si ya lo conocieras. Y
+`check_known` devuelve tu opinión junto a la evidencia de escucha, así que al
+proponer se ve de un vistazo si ya lo descartaste.
+
+Se guarda en `datos/notas.json`, fuera de git porque es tuyo.
 
 ### Por qué estas fuentes y no AOTY o RateYourMusic
 

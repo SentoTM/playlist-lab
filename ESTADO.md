@@ -2,7 +2,7 @@
 
 Notas para retomar sin releer todo el historial. Actualizar al cerrar cada sesión.
 
-_Última actualización: 21 de septiembre de 2026._
+_Última actualización: 22 de septiembre de 2026._
 
 ## Dónde estamos
 
@@ -15,31 +15,29 @@ Probado contra las APIs reales y funcionando: `status`, `taste_profile`,
 `find_underrated`, `artist_context`, `verify`, `music_press` (los 8 feeds
 responden), `search`, `album_info`.
 
-## Pendiente de comprobar (lo primero mañana)
+## Pendiente de comprobar (tras el próximo reinicio)
 
-1. `new_releases` — historial del problema: primero devolvía listas vacías
-   (por el `limit` de Spotify, ya arreglado), luego tardaba más de 3 minutos
-   (freno de peticiones y menos paralelismo, ya puesto) y por último falló con
-   `JSONDecodeError`, porque Last.fm devolvió HTML en vez de JSON y solo
-   Wikipedia tenía ese caso previsto. Corregido en los cuatro clientes y
-   aislado para que el fallo de un artista no tumbe la tanda. **Falta
-   ejecutarlo tras reiniciar Claude Desktop** y mirar `peticiones_a_spotify` y
-   `progreso` para saber dónde se va el tiempo.
-2. `discover_emerging` — mismo camino, nunca ha llegado a devolver resultados.
+1. `new_releases` — cuarta causa del mismo síntoma. Ya no falla y tarda 13 s,
+   pero seguía devolviendo listas vacías con 51 peticiones hechas: el endpoint
+   de discografía devuelve 10 por página y **no garantiza orden por fecha**,
+   así que una sola página traía discos antiguos y parecía que nadie había
+   publicado nada. Ahora se pagina y se ordena en local. Falta confirmarlo.
+2. `discover_emerging` — nunca ha llegado a devolver resultados; comparte la
+   misma corrección.
 3. `explore_scene` — es la única herramienta que no se ha ejecutado nunca.
+4. La memoria de opiniones (`remember` / `my_notes` / `forget_note`) está
+   probada en local pero no a través del MCP.
 
 ## Lo siguiente, por orden
 
-1. **Memoria de opiniones.** Es lo que más cambia la experiencia y no existe.
-   Hoy la app sabe qué escuchas pero no qué opinas: "esto me encantó", "no me
-   propongas más X" se pierde al cerrar la conversación. Hace falta un fichero
-   de notas por artista/disco, herramientas para leer y escribir en él, y que
-   el prompt de curación lo consulte siempre.
-2. **Despliegue.** Hoy es local y depende de tener Claude Desktop abierto.
+1. **Despliegue.** Hoy es local y depende de tener Claude Desktop abierto.
    Servidor con Tailscale o Cloudflare Access, token fuera del disco local y
    MCP por HTTP con autenticación; eso da móvil y ChatGPT sin túneles. ~1 día.
-3. **Chat propio con la API** (opcional, solo si al usarlo se echa de menos
+2. **Chat propio con la API** (opcional, solo si al usarlo se echa de menos
    hablar con la app en vez de con Claude Desktop).
+3. Con la memoria de opiniones ya en marcha, revisar al cabo de unas semanas
+   si hace falta más estructura (por ejemplo, notas por género o por
+   contexto de escucha) o si con artista/álbum/general basta.
 
 ## Cómo se trabaja aquí
 

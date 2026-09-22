@@ -334,27 +334,39 @@ class SpotifyClient:
         return same[:10]
 
     def artist_albums(self, artist_id: str, limit: int = 20,
-                      artist_name: str | None = None) -> list[dict]:
-        """Discografía en Spotify, sorteando dos recortes de la API.
+                      artist_name: str | None = None,
+                      max_paginas: int = 4) -> list[dict]:
+        """Discografía en Spotify, de lo más nuevo a lo más viejo.
 
-        1) `/artists/{id}/albums` ya solo admite `limit` de 0 a 10 (antes 50):
-           pasarse da 400 "Invalid limit", así que se recorta a 10.
-        2) Para tener discografía de verdad se completa con
-           search(artist:"Nombre"), filtrando por id para evitar homónimos.
-        Verificado contra la API real en sep. 2026 (scripts/diag_spotify.py).
+        Tres recortes de la API que hay que sortear (verificado en sep. 2026
+        con scripts/diag_spotify.py):
+        1) `limit` solo admite 0-10 (antes 50): pasarse da 400.
+        2) Al devolver 10 por página y NO garantizar orden por fecha, pedir
+           una sola página puede traer los discos más antiguos y hacer creer
+           que el artista lleva años sin publicar. Por eso se pagina con
+           `offset` y se ordena aquí por fecha descendente.
+        3) Si aun así no hay nada, se completa con search(artist:"Nombre"),
+           filtrando por id para evitar homónimos.
         """
-        items = self._get(f"/artists/{artist_id}/albums",
-                          include_groups="album,single",
-                          limit=min(limit, self.MAX_PAGE)).get("items", [])
-        if artist_name and len(items) < limit:
-            vistos = {a.get("id") for a in items}
-            for a in self.search_album(f'artist:"{artist_name}"', limit=50):
-                if a.get("id") in vistos:
-                    continue
-                if any(x.get("id") == artist_id for x in a.get("artists", [])):
-                    items.append(a)
-                    vistos.add(a.get("id"))
-        return items[:limit]
+        items: list[dict] = []
+        for pagina in range(max_paginas):
+            page = self._get(f"/artists/{artist_id}/albums",
+                             include_groups="album,single",
+                             limit=self.MAX_PAGE,
+                             offset=pagina * self.MAX_PAGE).get("items", [])
+            items.extend(page)
+            if len(page) < self.MAX_PAGE:
+                break
+        if not items and artist_name:
+            items = [a for a in self.search_album(f'artist:"{artist_name}"', 20)
+                     if any(x.get("id") == artist_id for x in a.get("artists", []))]
+        vistos, unicos = set(), []
+        for a in items:
+            if a.get("id") and a["id"] not in vistos:
+                vistos.add(a["id"])
+                unicos.append(a)
+        unicos.sort(key=lambda a: a.get("release_date") or "", reverse=True)
+        return unicos[:limit]
 
     def new_releases(self, limit: int = 50, country: str | None = None) -> list[dict]:
         """Novedades destacadas de Spotify. Puede estar cerrado (403) a apps

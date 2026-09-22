@@ -18,7 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import discovery, explore, jobs, library, taste  # noqa: E402
+from app import discovery, explore, jobs, library, notes, taste  # noqa: E402
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.press import FEEDS, PressClient     # noqa: E402
@@ -56,7 +56,18 @@ def _require_lastfm(lf: LastfmClient | None) -> LastfmClient:
 
 
 def _known(sp, lf, sf) -> dict:
-    return _cached("known", lambda: taste.known_artists(sp, lf, sf))
+    """Lo que ya conoce, más lo que ha dicho que no quiere volver a ver.
+
+    Los vetados entran aquí a propósito: para el filtrado son equivalentes a
+    'ya lo conoce', así que ninguna herramienta de descubrimiento los
+    propondrá por su cuenta.
+    """
+    conocidos = dict(_cached("known", lambda: taste.known_artists(sp, lf, sf)))
+    for clave, nota in notes.cargar()["artistas"].items():
+        if nota.get("veredicto") in notes.VETOS:
+            conocidos.setdefault(clave, {"artist": nota["artista"]})
+            conocidos[clave]["descartado_por_ti"] = nota.get("veredicto")
+    return conocidos
 
 
 def _require_auth(sp: SpotifyClient):
@@ -234,7 +245,8 @@ def check_known(artists: list[str], deep: bool = True) -> dict:
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
-    known = _cached("known", lambda: taste.known_artists(sp, lf, sf))
+    known = _known(sp, lf, sf)
+    opiniones = notes.para(artists)
     out = {}
     for name in artists:
         e = known.get(norm(name))
@@ -245,6 +257,10 @@ def check_known(artists: list[str], deep: bool = True) -> dict:
             out[name] = {"known": plays > 3, "lastfm_plays": plays}
         else:
             out[name] = {"known": False}
+        if name in opiniones:
+            op = opiniones[name]
+            out[name]["tu_opinion"] = {k: v for k, v in op.items()
+                                       if k != "artista"}
     return out
 
 
@@ -366,6 +382,80 @@ def verify(artist: str, album: str = "", discography: bool = False) -> dict:
     if discography:
         out["discografia"] = mb.discography(artist)
     return out
+
+
+# ---------- tus opiniones ----------
+
+@mcp.tool()
+def remember(tipo: str, sujeto: str, veredicto: str = "", nota: str = "",
+             album: str = "") -> dict:
+    """Guarda lo que el usuario opina. ÚSALO EN CUANTO LO DIGA, sin esperar.
+
+    Los datos de escucha no distinguen un disco que odió de uno que se sabe
+    de memoria: solo su juicio lo dice, y se pierde al cerrar la
+    conversación si no se guarda aquí.
+
+    tipo: "artista", "album" (pasa también `album`) o "general" (una
+    preferencia suya: "las playlists de más de hora y media no las oigo").
+    veredicto: "me encanta", "me gusta", "no es lo mío", "nunca más" o
+    "pendiente". Los dos negativos vetan al artista: dejará de aparecer en
+    las herramientas de descubrimiento.
+    `nota`: con sus palabras y el motivo, que es lo que sirve después.
+
+    Ante la duda de si merece guardarse, guárdalo: cuesta poco y no
+    guardarlo significa perderlo.
+    """
+    try:
+        entrada = notes.anotar(tipo, sujeto, veredicto, nota, album)
+    except ValueError as e:
+        return {"error": str(e)}
+    _cache.pop("known", None)  # el veto cambia lo que es proponible
+    return {"guardado": entrada,
+            "veredictos_posibles": notes.VEREDICTOS if not veredicto else None}
+
+
+@mcp.tool()
+def my_notes() -> dict:
+    """Todo lo que el usuario ha opinado hasta ahora.
+
+    CONSÚLTALO ANTES DE PROPONER NADA, junto con taste_profile: aquí está
+    lo que ya rechazó (para no repetirlo), lo que le encantó (buenas
+    referencias para buscar parecidos) y lo que dejó pendiente de escuchar.
+    """
+    return notes.listar()
+
+
+@mcp.tool()
+def forget_note(tipo: str, sujeto: str, album: str = "") -> dict:
+    """Borra una nota cuando el usuario cambia de opinión.
+
+    tipo: "artista" o "album". Un veto retirado vuelve a hacer proponible a
+    ese artista.
+    """
+    borrado = notes.olvidar(tipo, sujeto, album)
+    _cache.pop("known", None)
+    return {"borrado": borrado,
+            "nota": "No había nota que borrar" if not borrado else "Hecho"}
+
+
+@mcp.tool()
+def artist_releases(artist: str, limit: int = 20) -> dict:
+    """Discografía en Spotify de un artista, de lo más nuevo a lo más viejo.
+
+    Útil para "¿qué ha sacado últimamente?" o "¿por dónde empiezo?". Para
+    fechas de PRIMERA edición (sin reediciones) usa verify: Spotify fecha
+    las reediciones y confunde los clásicos.
+    """
+    sp, _, _ = _clients()
+    _require_auth(sp)
+    found = sp.search_artist(artist, limit=1)
+    if not found:
+        return {"error": f"No encuentro a {artist} en Spotify"}
+    albums = sp.artist_albums(found[0]["id"], limit=limit, artist_name=artist)
+    return {"artist": found[0].get("name"), "n": len(albums), "albumes": [
+        {"album": a.get("name"), "fecha": a.get("release_date"),
+         "tipo": a.get("album_type"), "canciones": a.get("total_tracks"),
+         "id": a.get("id")} for a in albums]}
 
 
 # ---------- exploración ----------
@@ -538,7 +628,7 @@ def curar_playlist(encargo: str = "") -> str:
     return f"""Eres el curador musical de este usuario. Encargo: {encargo or '(pregunta qué le apetece)'}
 
 Método:
-1. Llama a taste_profile y lee con calma: fase actual, géneros principales, qué escucha ahora vs. históricamente.
+1. Llama a taste_profile y a my_notes, y lee con calma: fase actual, géneros principales, qué escucha ahora vs. históricamente, y sobre todo qué ya ha juzgado (lo vetado no se propone; lo que le encanta es buena referencia para buscar parecidos).
 2. Piensa como un crítico que conoce escenas, sellos, discografías y reseñas (no como un algoritmo de similitud): busca artistas y discos que encajen con su gusto pero que probablemente no conozca, o que amplíen en una dirección coherente. Mezcla épocas y evita los nombres obvios salvo que el encargo lo pida. Tu criterio es el valor que aportas; las herramientas solo te dan los datos.
 2b. Si te faltan nombres, tira de las herramientas de exploración: explore_genre para el mapa de un género, explore_era para los clásicos de una franja, explore_scene para un lugar, discover_emerging para lo que acaba de salir y find_underrated para lo de culto.
 3. Si el encargo mira al presente (novedades, "lo último", este año), llama a new_releases y a music_press: tu conocimiento tiene fecha de corte y ahí es donde te equivocarás.
@@ -546,7 +636,8 @@ Método:
 5. Antes de afirmar años, sellos o discografías, contrástalos con verify. Es preferible una frase menos a un dato inventado.
 6. Verifica con resolve que todo existe en Spotify (y con album_info las duraciones si es una playlist de álbumes: ~70 min máximo por disco).
 7. Presenta la propuesta con una frase por elección (por qué encaja y qué aporta) y pide confirmación.
-8. Solo entonces create_playlist. Nombre corto y descriptivo."""
+8. Solo entonces create_playlist. Nombre corto y descriptivo.
+9. Durante toda la conversación, cada vez que opine sobre algo ("esto me encanta", "de estos no me pongas más", "me lo apunto"), guárdalo con remember en ese momento. Es lo que hace que la próxima vez no empecemos de cero."""
 
 
 @mcp.prompt()
@@ -557,11 +648,12 @@ def explorar(tema: str = "") -> str:
 No hagas una lista: cuenta una historia y que la lista salga de ella.
 
 1. Sitúa el terreno. Según el tema, explore_genre (qué es y quién lo puebla), explore_era (los clásicos de una franja de años, con fechas reales), explore_scene (un lugar y lo que salió de allí) o artist_context (un artista a fondo).
-2. Mira taste_profile para enganchar lo nuevo con lo que ya escucha: un viaje se entiende mejor desde casa. check_known te dice qué parte ya ha pisado.
+2. Mira taste_profile y my_notes para enganchar lo nuevo con lo que ya escucha y no repetir lo que ya descartó: un viaje se entiende mejor desde casa. check_known te dice qué parte ya ha pisado y qué opinó.
 3. Aporta lo que las herramientas no tienen: por qué ese disco cambió algo, qué escuchaba la gente antes y después, qué grupo es el eslabón. Ese relato es tu trabajo; los datos solo lo sostienen.
 4. Si el tema mira al presente, discover_emerging y music_press. Si busca rarezas, find_underrated sobre tus sospechas.
 5. Contrasta con verify todo año, sello o formación antes de afirmarlo.
-6. Ofrece un recorrido corto (5-8 piezas o discos) con una frase por parada que diga qué escuchar en ella. Confirma antes de crear nada con create_playlist."""
+6. Ofrece un recorrido corto (5-8 piezas o discos) con una frase por parada que diga qué escuchar en ella. Confirma antes de crear nada con create_playlist.
+7. Guarda con remember lo que vaya opinando por el camino, incluido lo que le apetece escuchar más adelante ("pendiente")."""
 
 
 if __name__ == "__main__":
