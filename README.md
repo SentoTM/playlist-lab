@@ -20,6 +20,9 @@ resolver y crear**. Lo de arriba sale de fuentes sin cuota.
 
 | Para saber... | Fuente | Coste |
 |---|---|---|
+| Qué apoya una radio con criterio | KEXP (`api.kexp.org`) | sin cuota |
+| Quién publica a quién (sellos) | MusicBrainz | sin cuota, 1 petición/segundo |
+| Novedades del mundo | ListenBrainz | sin cuota |
 | Qué escuchas y en qué época | stats.fm (`weeks`/`months`/`lifetime`) — trae escuchas, géneros e ids de Spotify | 1 petición por tanda, sin cuota |
 | Qué conoces (filtro) | stats.fm + Last.fm + tu biblioteca cacheada | sin cuota |
 | Tu biblioteca guardada | Spotify (nadie más la tiene) | ~18 peticiones, cacheadas **7 días** |
@@ -86,6 +89,15 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `music_press` | reseñas y noticias recientes (Pitchfork, Quietus, Bandcamp Daily, Mondo Sonoro, Jenesaispop, Stereogum, BrooklynVegan) |
 | `verify` | año real, sello, actividad y discografía según MusicBrainz |
 
+| Conocer y evaluar | |
+|---|---|
+| `dossier_artist` | todas las señales de un artista en una llamada: audiencia, ficha, sellos, KEXP, prensa y tu opinión |
+| `radio_tastemaker` | qué pincha KEXP esta semana: curación humana, la mejor señal para emergentes |
+| `played_on_radio` | si KEXP ha emitido a alguien, como aval de un desconocido |
+| `labels_of` / `label_catalog` | con qué sello publica una banda y quiénes son sus compañeros de catálogo |
+| `fresh_releases` | novedades del mundo según ListenBrainz, sin pasar por Spotify |
+| `press_about` | qué se ha dicho de un artista en la prensa archivada |
+
 | Exploración | |
 |---|---|
 | `explore_genre` | qué es un género, de dónde viene y quién lo puebla (incluye subgéneros finos) |
@@ -133,6 +145,30 @@ descubrimiento. `check_known` devuelve tu opinión junto a la evidencia de
 escucha, así que al proponer se ve de un vistazo qué pasó con eso.
 
 `scripts/sembrar_notas.py` hace la carga inicial a partir de lo ya escuchado.
+
+### Las tres señales que no da ningún algoritmo
+
+La popularidad agregada (oyentes, listas por etiqueta) dice lo que ya es
+grande. Para lo que todavía no lo es, sirven otras tres, y las tres son
+gratuitas:
+
+**Una radio con criterio.** KEXP decide cada semana a quién apoyar, y lo hace
+antes de que existan cifras. Un grupo con tres mil oyentes que suena tres
+veces en una semana no es casualidad: alguien lo ha elegido. `radio_tastemaker`
+da ese ranking; `played_on_radio` comprueba un nombre concreto.
+
+**El sello.** En el indie británico las escenas se organizan por sello, no por
+género: Speedy Wunderground, Nice Swan, Partisan. Un sello es un filtro de
+gusto humano, así que si te gustan tres de sus discos el cuarto tiene
+papeletas. El flujo es `labels_of` sobre una banda que te guste y después
+`label_catalog` para ver a sus compañeros de catálogo.
+
+**Las escuchas por oyente.** Mucha escucha repartida entre poca gente es un
+público devoto, que es distinto de ser desconocido. Lo calcula
+`find_underrated` y aparece en el dosier.
+
+`dossier_artist` junta todo eso en una sola llamada, con tu opinión lo
+primero si ya habías dicho algo.
 
 ### Por qué estas fuentes y no AOTY o RateYourMusic
 

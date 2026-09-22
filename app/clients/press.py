@@ -2,13 +2,24 @@
 
 Feeds públicos, sin claves ni scraping. Se parsean con la librería estándar
 (RSS 2.0 y Atom). Cada fuente falla por separado: si una cae, el resto sigue.
+
+Además se guarda un ARCHIVO en datos/prensa.json con todo lo que va pasando
+por aquí. Un feed RSS solo enseña las últimas entradas, así que sin archivo
+la memoria de la prensa dura días; con él, cuanto más se use la herramienta
+más profundo es el fondo para buscar qué se ha dicho de un artista.
 """
+import json
 import logging
+import os
 import re
+import threading
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree as ET
+
+from pathlib import Path
 
 import httpx
 
@@ -30,6 +41,61 @@ FEEDS = {
 }
 
 _TAGS = re.compile(r"<[^>]+>")
+ARCHIVO = Path(__file__).resolve().parents[2] / "datos" / "prensa.json"
+MAX_ARCHIVO = 4000
+_lock_archivo = threading.Lock()
+
+
+def _plano(texto: str) -> str:
+    texto = unicodedata.normalize("NFKD", (texto or "").lower())
+    return "".join(c for c in texto if not unicodedata.combining(c))
+
+
+def archivar(items: list[dict]) -> int:
+    """Suma al archivo lo que no estuviera ya. Devuelve cuántos son nuevos."""
+    with _lock_archivo:
+        try:
+            guardados = json.loads(ARCHIVO.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            guardados = []
+        vistos = {i.get("url") for i in guardados}
+        nuevos = [i for i in items if i.get("url") and i["url"] not in vistos]
+        if not nuevos:
+            return 0
+        guardados = nuevos + guardados
+        guardados.sort(key=lambda i: i.get("date") or "", reverse=True)
+        guardados = guardados[:MAX_ARCHIVO]
+        try:
+            ARCHIVO.parent.mkdir(parents=True, exist_ok=True)
+            temporal = ARCHIVO.with_suffix(".tmp")
+            temporal.write_text(json.dumps(guardados, ensure_ascii=False),
+                                encoding="utf-8")
+            os.replace(temporal, ARCHIVO)
+        except OSError as e:
+            log.warning("No se pudo guardar el archivo de prensa: %s", e)
+        return len(nuevos)
+
+
+def buscar_en_archivo(termino: str, limite: int = 25) -> list[dict]:
+    """Qué se ha dicho de algo en la prensa que hemos ido archivando."""
+    try:
+        guardados = json.loads(ARCHIVO.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    aguja = _plano(termino)
+    if not aguja:
+        return []
+    encontrados = [i for i in guardados
+                   if aguja in _plano(i.get("title", ""))
+                   or aguja in _plano(i.get("summary", ""))]
+    return encontrados[:limite]
+
+
+def tamano_archivo() -> int:
+    try:
+        return len(json.loads(ARCHIVO.read_text(encoding="utf-8")))
+    except (OSError, json.JSONDecodeError):
+        return 0
 
 
 def _clean(text: str | None, limit: int = 400) -> str:
@@ -111,5 +177,7 @@ class PressClient:
                       - timedelta(days=since_days)).isoformat()
             items = [i for i in items if (i["date"] or "") >= cutoff]
         items.sort(key=lambda i: i["date"] or "", reverse=True)
+        archivados = archivar([i for b in batches for i in b])
         return {"items": items, "warnings": warnings,
-                "fuentes": [self.feeds[k][0] for k in keys]}
+                "fuentes": [self.feeds[k][0] for k in keys],
+                "archivo": {"nuevos": archivados, "total": tamano_archivo()}}

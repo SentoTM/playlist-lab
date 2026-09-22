@@ -18,11 +18,13 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import cache, discovery, explore, jobs, library, notes, taste  # noqa: E402
+from app import (cache, discovery, dossier, explore, jobs, library,  # noqa: E402
+                 notes, taste)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.kexp import KexpClient              # noqa: E402
 from app.clients.listenbrainz import ListenbrainzClient  # noqa: E402
+from app.clients import press as press_mod          # noqa: E402
 from app.clients.press import FEEDS, PressClient     # noqa: E402
 from app.clients.spotify import SpotifyClient, SpotifyRateLimited  # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
@@ -589,6 +591,44 @@ def played_on_radio(artist: str) -> dict:
     return {"artist": artist, "veces": len(emisiones), "emisiones": emisiones[:15],
             "nota": ("Sin emisiones no significa nada malo: KEXP es una sola "
                      "emisora, con su propio sesgo hacia el rock anglosajón.")}
+
+
+@mcp.tool()
+def dossier_artist(artist: str) -> dict:
+    """TODAS las señales sobre un artista en una sola llamada. Úsalo para
+    decidir si merece entrar en una propuesta.
+
+    Junta audiencia y etiquetas (Last.fm), ficha y sellos (MusicBrainz),
+    contexto (Wikipedia), emisiones en KEXP, menciones en la prensa
+    archivada y —lo primero que deberías mirar— si el usuario ya lo conoce
+    o ya opinó de él. Empieza por `resumen_de_senales`, que lo condensa.
+
+    No gasta cuota de Spotify. Tarda unos segundos por el límite de
+    MusicBrainz.
+    """
+    sp, lf, sf = _clients()
+    _require_lastfm(lf)
+    return cache.recordar(
+        f"dossier:{norm(artist)}", 24 * 3600,
+        lambda: dossier.construir(artist, lf, mb, wiki, kexp,
+                                  _known(sp, lf, sf), notes.para([artist])))
+
+
+@mcp.tool()
+def press_about(termino: str, limite: int = 20) -> dict:
+    """Qué ha dicho la prensa sobre un artista, disco o escena.
+
+    Busca en el archivo que se va acumulando con cada llamada a
+    music_press: un RSS solo enseña lo último, así que el fondo crece con
+    el uso. Si no hay nada, llama antes a music_press para llenar el
+    archivo, o asume que no lo hemos recogido (no que no exista).
+    """
+    encontrados = press_mod.buscar_en_archivo(termino, limite)
+    return {"termino": termino, "encontrados": len(encontrados),
+            "articulos": encontrados,
+            "tamano_del_archivo": press_mod.tamano_archivo(),
+            "nota": ("El archivo solo tiene lo publicado desde que usas esto. "
+                     "Cero resultados no significa que la prensa lo ignore.")}
 
 
 @mcp.tool()
