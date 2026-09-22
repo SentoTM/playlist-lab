@@ -103,7 +103,10 @@ def mcp_config() -> dict:
 
 @app.get("/api/profile")
 def profile():
-    """El mismo perfil que ve la IA por MCP, para echarle un ojo."""
-    if not sp or not sp.authenticated:
-        raise HTTPException(401, "Inicia sesión con Spotify primero")
-    return taste.taste_profile(sp, lf, sf)
+    """El mismo perfil que ve la IA por MCP, para echarle un ojo.
+
+    Sale de stats.fm, no de Spotify: así no gasta cuota (ver app/taste.py).
+    """
+    if not sf:
+        raise HTTPException(400, "stats.fm no está configurado (STATSFM_USERNAME)")
+    return taste.taste_profile(sf)

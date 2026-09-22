@@ -11,6 +11,27 @@ Centro de consulta y creación de playlists de Spotify **para usar conversando**
 - **Clientes** (`app/clients/`) — Spotify (PKCE, degrada ante endpoints cerrados), Last.fm (escuchas y mapa social), stats.fm (API interna, best-effort; validada sep. 2026), MusicBrainz (datos verificables), Wikipedia (contexto) y prensa por RSS.
 - `app/taste.py` — perfil de gustos y artistas conocidos. `app/library.py` — búsqueda, resolución de "Artista – Canción/Álbum" y creación. `app/discovery.py` — novedades de tu órbita. `app/explore.py` — los modos de viaje.
 
+### Presupuesto de fuentes
+
+La cuota de Spotify en modo desarrollo se agota con facilidad —se comparte
+entre todas tus consultas y tarda más de una hora en reponerse— y es el cuello
+de botella de todo. Por eso la regla es: **Spotify solo al final, para
+resolver y crear**. Lo de arriba sale de fuentes sin cuota.
+
+| Para saber... | Fuente | Coste |
+|---|---|---|
+| Qué escuchas y en qué época | stats.fm (`weeks`/`months`/`lifetime`) — trae escuchas, géneros e ids de Spotify | 1 petición por tanda, sin cuota |
+| Qué conoces (filtro) | stats.fm + Last.fm + tu biblioteca cacheada | sin cuota |
+| Tu biblioteca guardada | Spotify (nadie más la tiene) | ~18 peticiones, cacheadas **7 días** |
+| Si conoces a un artista concreto | Last.fm `artist.getInfo` | sin cuota |
+| Qué ha publicado alguien hace poco | MusicBrainz (fecha de primera edición) | sin cuota, 1 petición/segundo |
+| Mapa de un género, escena, artistas similares | Last.fm + Wikipedia | sin cuota |
+| Qué se está reseñando | RSS de prensa | sin cuota |
+| Que un disco existe y crear la playlist | Spotify | unas pocas, solo para los finalistas |
+
+`status` dice en todo momento si Spotify nos tiene frenados y qué hay en
+caché. Si te frena, espera: insistir solo alarga el castigo.
+
 ### El reparto de papeles
 
 El **criterio** lo pone el modelo: escenas, discografías, crítica, por qué dos grupos se parecen. Eso no se replica con reglas ni con bases de datos, y es lo que hace que las propuestas sean buenas. La **app** aporta lo que el modelo no puede saber: qué escuchas tú (Spotify, stats.fm), si conoces a un artista concreto aunque lo hayas oído cuatro veces (Last.fm), qué ha salido hace poco cerca de tu órbita (`new_releases`), qué se está reseñando ahora (`music_press`, la fecha de corte del modelo deja de importar) y si un año o un sello son ciertos (`verify` contra MusicBrainz, que es justo lo que un modelo inventa con aplomo).

@@ -1,14 +1,18 @@
 """Perfil de gustos: lo que la IA necesita saber de ti antes de proponer.
 
-Resumen compacto de fuentes que no se solapan:
-  - Spotify: tops por periodo (4 semanas, 6 meses, años) con géneros, y la
-    biblioteca guardada, que es otra señal: guardar es decidir, no repetir.
-  - stats.fm: historial completo (lifetime) con géneros.
+PRESUPUESTO DE FUENTES. La cuota de Spotify en modo desarrollo se agota con
+facilidad y es el cuello de botella de todo, así que el perfil se construye
+sobre fuentes gratuitas y Spotify se reserva para el final (resolver y crear):
 
-Last.fm queda fuera del perfil a propósito: al scrobblear solo desde Spotify,
-sus tops duplican los de Spotify y alargan el contexto sin añadir señal. Su
-valor está en known_artists/check_known, donde sí es irreemplazable (playcount
-de CUALQUIER artista, no solo de los tops).
+  - stats.fm es la fuente principal: en UNA petición devuelve artistas con
+    número de escuchas, géneros y hasta el id de Spotify, y admite rangos
+    (weeks | months | lifetime). Cubre lo que antes pedíamos a los tops de
+    Spotify, gratis.
+  - Spotify solo aporta lo que nadie más tiene: la biblioteca guardada
+    (guardar es decidir, repetir no). Cuesta ~18 peticiones, así que se
+    cachea en disco varios días: cambia despacio.
+  - Last.fm queda fuera del perfil porque duplica lo demás; su valor está en
+    known_artists, donde es irreemplazable (escuchas de CUALQUIER artista).
 """
 from collections import Counter
 
@@ -18,6 +22,9 @@ from .clients.statsfm import StatsfmClient
 from .text import norm
 
 RANGES = {"short_term": "4 semanas", "medium_term": "6 meses", "long_term": "años"}
+# stats.fm cubre lo mismo sin gastar cuota de Spotify
+RANGOS_STATSFM = {"weeks": "últimas semanas", "months": "últimos meses",
+                  "lifetime": "siempre"}
 
 
 def _artist_entries(items: list[dict], key: str, limit: int) -> list[dict]:
@@ -30,23 +37,32 @@ def _artist_entries(items: list[dict], key: str, limit: int) -> list[dict]:
     return out
 
 
-def taste_profile(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient | None,
+def taste_profile(sf: StatsfmClient | None, biblioteca: dict | None = None,
                   artists_per_range: int = 20, tracks_per_range: int = 15) -> dict:
-    """Resumen de gustos por periodo, géneros agregados y señales de cambio."""
-    genres: Counter = Counter()
-    out: dict = {"spotify": {}, "statsfm": None}
+    """Resumen de gustos por periodo, géneros agregados y señales de cambio.
 
-    for rng, label in RANGES.items():
-        artists = sp.top_artists(rng, 50)
-        for w, a in enumerate(artists):
+    Sin una sola petición a Spotify: todo sale de stats.fm salvo la
+    biblioteca, que se le pasa ya cacheada.
+    """
+    genres: Counter = Counter()
+    out: dict = {"por_periodo": {}, "fuente": "stats.fm (historial completo)"}
+    if not sf:
+        return {"error": "stats.fm no está configurado y es la fuente del perfil"}
+
+    por_rango: dict[str, list] = {}
+    for rango, label in RANGOS_STATSFM.items():
+        artistas = sf.top_artists(rango, 50)
+        por_rango[label] = artistas
+        peso = 1.0 if rango != "lifetime" else 0.5
+        for w, a in enumerate(artistas):
             for g in a.get("genres", []):
-                genres[g] += (50 - w) / 50  # los de arriba pesan más
-        tracks = sp.top_tracks(rng, tracks_per_range)
-        out["spotify"][label] = {
-            "artists": [{"artist": a["name"], "genres": a.get("genres", [])[:4]}
-                        for a in artists[:artists_per_range]],
-            "tracks": [f"{(t.get('artists') or [{}])[0].get('name', '')} – {t.get('name', '')}"
-                       for t in tracks],
+                genres[g] += peso * (50 - w) / 50  # los de arriba pesan más
+        out["por_periodo"][label] = {
+            "artistas": [{"artist": a["name"], "escuchas": a["streams"],
+                          "generos": a.get("genres", [])[:4]}
+                         for a in artistas[:artists_per_range]],
+            "canciones": [f"{t['artist']} – {t['name']}"
+                          for t in sf.top_tracks(rango, tracks_per_range)],
         }
 
     if sf:
@@ -63,20 +79,21 @@ def taste_profile(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient 
                 for t in sf.top_tracks("lifetime", 20)],
         }
 
-    try:
-        out["biblioteca"] = library(sp, 400)
-    except Exception:  # noqa: BLE001
-        out["biblioteca"] = None
+    out["biblioteca"] = biblioteca
 
-    # Señales de cambio: artistas nuevos en el corto plazo que no están en el largo
-    short = {a["artist"] for a in out["spotify"]["4 semanas"]["artists"]}
-    long_ = {a["artist"] for a in out["spotify"]["años"]["artists"]}
-    out["fase_actual"] = sorted(short - long_)
+    # Señales de cambio: quién ha entrado ahora y no venía de largo
+    corto = {a["name"] for a in por_rango["últimas semanas"][:artists_per_range]}
+    largo = {a["name"] for a in por_rango["siempre"][:artists_per_range]}
+    out["fase_actual"] = sorted(corto - largo)
     out["generos_principales"] = [g for g, _ in genres.most_common(25)]
+    out["nota"] = ("Periodos de stats.fm, que recoge todo tu historial de "
+                   "Spotify. 'fase_actual' son los que suenan ahora y no "
+                   "estaban en tu histórico: suele ser la pista más útil.")
     return out
 
 
 def library(sp: SpotifyClient, max_tracks: int = 600) -> dict:
+    # ~18 peticiones a Spotify: cachear varios días, no llamar en caliente
     """Tu biblioteca: lo que has GUARDADO, no lo que has repetido.
 
     Guardar es una decisión deliberada; los tops son solo repetición. Dos
@@ -97,12 +114,17 @@ def library(sp: SpotifyClient, max_tracks: int = 600) -> dict:
         "guardado": (a.get("_added_at") or "")[:10],
     } for a in albums]
     albums_rows.sort(key=lambda r: r["guardado"], reverse=True)
+    try:
+        seguidos = [a["name"] for a in sp.followed_artists(300) if a.get("name")]
+    except Exception:  # noqa: BLE001
+        seguidos = []
     return {
         "canciones_guardadas": len(tracks),
         "albumes_guardados": len(albums),
         "artistas_mas_guardados": [{"artist": n, "canciones": c}
-                                   for n, c in por_artista.most_common(30)],
+                                   for n, c in por_artista.most_common(40)],
         "albumes_recientes_en_tu_biblioteca": albums_rows[:25],
+        "artistas_seguidos": seguidos,
     }
 
 
@@ -124,36 +146,27 @@ def playlists(sp: SpotifyClient, mine_only: bool = True) -> list[dict]:
     return out
 
 
-def known_artists(sp: SpotifyClient, lf: LastfmClient | None,
-                  sf: StatsfmClient | None) -> dict[str, dict]:
+def known_artists(sf: StatsfmClient | None, lf: LastfmClient | None,
+                  biblioteca: dict | None = None) -> dict[str, dict]:
     """Todos los artistas que conoces, con la fuente y la magnitud.
 
-    Cruza cinco señales: tops de Spotify, biblioteca guardada, artistas que
-    sigues, scrobbles de Last.fm e historial de stats.fm. Es lo que usa
-    check_known para no proponerte algo que ya tienes.
+    Sin peticiones a Spotify: stats.fm (historial completo, 1 petición por
+    tanda de 300), Last.fm (todo lo scrobbleado) y la biblioteca guardada
+    que se le pasa ya cacheada. Es lo que usa check_known para no
+    proponerte algo que ya tienes.
     """
     known: dict[str, dict] = {}
 
     def entry(name: str) -> dict:
         return known.setdefault(norm(name), {"artist": name})
 
-    for rng in RANGES:
-        for i, a in enumerate(sp.top_artists(rng, 50)):
-            e = entry(a["name"])
-            e["spotify_rank"] = min(e.get("spotify_rank", 999), i + 1)
-
-    for t in sp.all_saved_tracks(600):
-        for a in t.get("artists") or []:
-            if a.get("name"):
-                e = entry(a["name"])
-                e["canciones_guardadas"] = e.get("canciones_guardadas", 0) + 1
-    for a in sp.saved_albums(300):
-        for art in a.get("artists") or []:
-            if art.get("name"):
-                entry(art["name"])["album_guardado"] = True
-    for a in sp.followed_artists(300):
-        if a.get("name"):
-            entry(a["name"])["lo_sigues"] = True
+    for fuente in (biblioteca or {}).get("artistas_mas_guardados", []):
+        entry(fuente["artist"])["canciones_guardadas"] = fuente["canciones"]
+    for fila in (biblioteca or {}).get("albumes_recientes_en_tu_biblioteca", []):
+        if fila.get("artist"):
+            entry(fila["artist"])["album_guardado"] = True
+    for nombre in (biblioteca or {}).get("artistas_seguidos", []):
+        entry(nombre)["lo_sigues"] = True
     if lf and lf.username:
         for a in lf.user_top_artists("overall", 300):
             entry(a["name"])["lastfm_plays"] = a["playcount"]

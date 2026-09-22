@@ -88,12 +88,12 @@ $("loadProfile").onclick = async () => {
   try {
     const p = await api("/api/profile");
     let h = `<p><b>Géneros principales:</b> ${p.generos_principales.map(g => `<span class="pill">${esc(g)}</span>`).join("")}</p>`;
-    if (p.fase_actual.length) h += `<p><b>Fase actual</b> (nuevos en el corto plazo): ${p.fase_actual.map(esc).join(", ")}</p>`;
+    if (p.fase_actual && p.fase_actual.length) h += `<p><b>Fase actual</b> (suenan ahora y no venían de largo): ${p.fase_actual.map(esc).join(", ")}</p>`;
     h += '<div class="cols">';
-    for (const [label, d] of Object.entries(p.spotify)) {
-      h += `<div><h2>Spotify · ${esc(label)}</h2><ul>${d.artists.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${esc(a.genres.slice(0,2).join(", "))}</span></li>`).join("")}</ul></div>`;
+    for (const [label, d] of Object.entries(p.por_periodo || {})) {
+      h += `<div><h2>${esc(label)}</h2><ul>${d.artistas.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${a.escuchas} · ${esc((a.generos||[]).slice(0,2).join(", "))}</span></li>`).join("")}</ul></div>`;
     }
-    if (p.statsfm) h += `<div><h2>stats.fm · histórico</h2><ul>${p.statsfm.top_artistas_historico.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${a.streams}</span></li>`).join("")}</ul></div>`;
+    if (p.biblioteca && p.biblioteca.artistas_mas_guardados) h += `<div><h2>Más guardados</h2><ul>${p.biblioteca.artistas_mas_guardados.slice(0, 12).map(a => `<li>${esc(a.artist)} <span class="muted">${a.canciones}</span></li>`).join("")}</ul></div>`;
     h += "</div>";
     $("profile").innerHTML = h;
   } catch (e) { $("profile").innerHTML = `<div class="warn">⚠ ${esc(e.message)}</div>`; }

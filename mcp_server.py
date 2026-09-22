@@ -55,6 +55,22 @@ def _require_lastfm(lf: LastfmClient | None) -> LastfmClient:
     return lf
 
 
+BIBLIOTECA_TTL = 7 * 24 * 3600   # cambia despacio y cuesta ~18 peticiones
+CONOCIDOS_TTL = 12 * 3600
+PERFIL_TTL = 6 * 3600
+
+
+def _biblioteca(sp) -> dict:
+    """La biblioteca guardada, cacheada en disco: es lo único que pedimos a
+    Spotify para el perfil, y es lo que nadie más tiene."""
+    def traer():
+        try:
+            return taste.library(sp)
+        except SpotifyRateLimited:
+            return {}
+    return cache.recordar("biblioteca", BIBLIOTECA_TTL, traer) or {}
+
+
 def _known(sp, lf, sf) -> dict:
     """Lo que ya conoce, más lo que ha dicho que no quiere volver a ver.
 
@@ -62,10 +78,10 @@ def _known(sp, lf, sf) -> dict:
     'ya lo conoce', así que ninguna herramienta de descubrimiento los
     propondrá por su cuenta.
     """
-    # a disco y 12 h: reconstruirlo cuesta ~30 peticiones y apenas cambia,
-    # y el servidor MCP se reinicia cada vez que se toca el código
-    conocidos = dict(cache.recordar("known", 12 * 3600,
-                                    lambda: taste.known_artists(sp, lf, sf)))
+    # Sin cuota de Spotify: stats.fm + Last.fm + la biblioteca ya cacheada
+    conocidos = dict(cache.recordar(
+        "known", CONOCIDOS_TTL,
+        lambda: taste.known_artists(sf, lf, _biblioteca(sp))))
     artistas = notes.cargar()["artistas"]
     for clave, veredicto in notes.vetados().items():
         conocidos.setdefault(clave, {"artist": artistas[clave]["artista"]})
@@ -134,19 +150,25 @@ def status() -> dict:
 def taste_profile() -> dict:
     """Perfil de gustos del usuario: EMPIEZA SIEMPRE POR AQUÍ antes de proponer.
 
-    Devuelve, por periodo (4 semanas / 6 meses / años), sus artistas top con
-    géneros y sus canciones top en Spotify; su biblioteca guardada (otra
-    señal: guardar es decidir, repetir no); su top histórico completo
-    (stats.fm); `fase_actual` (artistas nuevos en el corto plazo que no están
-    en el largo) y `generos_principales` agregados. Se cachea 30 min.
+    Devuelve, por periodo (últimas semanas / últimos meses / siempre), sus
+    artistas y canciones más escuchados con géneros y número de escuchas; su
+    biblioteca guardada (otra señal: guardar es decidir, repetir no);
+    `fase_actual` (quién suena ahora y no venía de largo, la pista más útil)
+    y `generos_principales`.
+
+    Sale de stats.fm, que recoge todo su historial de Spotify, así que NO
+    gasta cuota de Spotify. Se cachea en disco 6 h.
 
     Para saber si conoce a un artista concreto usa check_known, no esto: el
     perfil son solo sus tops, y escucha mucho más de lo que aparece aquí.
     """
     sp, lf, sf = _clients()
-    _require_auth(sp)
-    return jobs.run_or_wait(
-        "profile", lambda: taste.taste_profile(sp, lf, sf))
+    if not sf:
+        raise RuntimeError("stats.fm no está configurado y es la fuente del "
+                           "perfil (STATSFM_USERNAME en .env).")
+    return cache.recordar(
+        "profile", PERFIL_TTL,
+        lambda: taste.taste_profile(sf, _biblioteca(sp)))
 
 
 @mcp.tool()
@@ -160,7 +182,7 @@ def my_library() -> dict:
     """
     sp, _, _ = _clients()
     _require_auth(sp)
-    return _cached("library", lambda: taste.library(sp))
+    return _biblioteca(sp)
 
 
 @mcp.tool()
@@ -290,7 +312,7 @@ def similar_artists(artist: str, limit: int = 15, only_unknown: bool = True) -> 
     sims = lf.similar_artists(artist, limit * 2 if only_unknown else limit)
     if only_unknown:
         _require_auth(sp)
-        known = _cached("known", lambda: taste.known_artists(sp, lf, sf))
+        known = _known(sp, lf, sf)
         sims = [s for s in sims if norm(s["name"]) not in known]
     return sims[:limit]
 
@@ -342,19 +364,21 @@ def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
     Esto es lo que una búsqueda web no te da: novedades filtradas por ÉL.
     Para contexto y crítica de esas novedades, combínalo con music_press.
 
-    LENTO: hace cientos de peticiones. Se calcula en segundo plano, así que
-    si la respuesta dice `vuelve_a_llamar`, llama otra vez con los MISMOS
-    parámetros: el trabajo sigue en marcha y la siguiente llamada lo recoge.
+    NO gasta cuota de Spotify: pregunta a MusicBrainz, que da la fecha de
+    primera edición y solo limita a una petición por segundo. A cambio tarda
+    (~30 s) y algún lanzamiento de los últimos días puede no estar catalogado
+    todavía. Se calcula en segundo plano: si la respuesta dice
+    `vuelve_a_llamar`, llama otra vez con los MISMOS parámetros.
     """
     sp, lf, sf = _clients()
     _require_auth(sp)
     key = f"new:{months}:{include_known_artists}"
 
     def calcular(paso):
-        paso("leyendo lo que ya conoces (tops, biblioteca, Last.fm, stats.fm)")
+        paso("leyendo lo que ya conoces (stats.fm, Last.fm y tu biblioteca)")
         known = _known(sp, lf, sf)
         return discovery.new_releases(sp, lf, sf, known, months,
-                                      include_known_artists, paso=paso)
+                                      include_known_artists, paso=paso, mb=mb)
 
     return jobs.run_or_wait(key, calcular)
 

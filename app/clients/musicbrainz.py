@@ -116,6 +116,31 @@ class MusicbrainzClient:
             })
         return out
 
+    def recent_by_artist(self, artist: str, desde: str, limit: int = 15) -> list[dict]:
+        """Álbumes y EPs de un artista publicados desde `desde` (YYYY-MM-DD).
+
+        Alternativa gratuita a preguntarle a Spotify por la discografía: aquí
+        la fecha es la de PRIMERA edición y no gasta cuota. A cambio,
+        MusicBrainz limita a una petición por segundo y algún lanzamiento muy
+        reciente puede tardar días en aparecer catalogado.
+        """
+        data = self._get("/release-group",
+                         query=f'artist:"{artist}" AND firstreleasedate:[{desde} TO *]',
+                         limit=limit)
+        out = []
+        for rg in data.get("release-groups", []):
+            if rg.get("score", 0) < 70 or rg.get("secondary-types"):
+                continue
+            credito = ", ".join(c["name"] for c in (rg.get("artist-credit") or [])
+                                if isinstance(c, dict) and c.get("name"))
+            fecha = rg.get("first-release-date") or ""
+            if fecha < desde:
+                continue
+            out.append({"artist": credito or artist, "album": rg.get("title"),
+                        "fecha": fecha, "tipo": rg.get("primary-type")})
+        out.sort(key=lambda r: r["fecha"], reverse=True)
+        return out
+
     def releases_by_tag(self, tag: str, year_from: int | None = None,
                         year_to: int | None = None, limit: int = 60) -> list[dict]:
         """Álbumes de un género en una franja de años, por fecha real de

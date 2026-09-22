@@ -10,6 +10,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from .clients.lastfm import LastfmClient
+from .clients.musicbrainz import MusicbrainzClient
 from .clients.spotify import SpotifyClient, SpotifyRateLimited
 from .clients.statsfm import StatsfmClient
 from .text import norm
@@ -60,7 +61,14 @@ def orbit_artists(sp: SpotifyClient, lf: LastfmClient | None,
 def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient | None,
                  known: dict[str, dict], months: int = 3,
                  include_known_artists: bool = True,
-                 max_artists: int = 16, paso=None) -> dict:
+                 max_artists: int = 16, paso=None,
+                 mb: MusicbrainzClient | None = None) -> dict:
+    """Novedades de su órbita. Con `mb` no gasta ni una petición de Spotify.
+
+    MusicBrainz da la fecha de primera edición y no tiene cuota (solo una
+    petición por segundo), así que para "¿ha sacado algo este artista?" es
+    mejor fuente que Spotify. Spotify queda para el final: resolver y crear.
+    """
     """Discos publicados en los últimos `months` meses dentro de tu órbita.
 
     Separa lo que es de artistas que ya escuchas ("de los tuyos") de lo que
@@ -78,6 +86,18 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
     warnings = []
 
     fallos: dict[str, int] = {}
+
+    def recent_mb(name: str) -> list[dict]:
+        """Vía MusicBrainz: gratis, secuencial (1 petición/segundo)."""
+        try:
+            return [{"artist": r["artist"], "name": r["album"],
+                     "release_date": r["fecha"], "album_type": (r.get("tipo") or "").lower(),
+                     "id": None}
+                    for r in mb.recent_by_artist(name, cutoff)]
+        except Exception as e:  # noqa: BLE001
+            log.warning("MusicBrainz falló con %s: %s", name, e)
+            fallos[type(e).__name__] = fallos.get(type(e).__name__, 0) + 1
+            return []
 
     def recent_for(name: str) -> list[dict]:
         """Discos recientes de un artista.
@@ -108,9 +128,14 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
 
     targets = (mine[:max_artists // 2] if include_known_artists else []) + \
               neighbours[:max_artists]
-    avisar(f"mirando los discos recientes de {len(targets)} artistas")
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        batches = list(pool.map(recent_for, targets))
+    if mb:
+        avisar(f"mirando en MusicBrainz los discos recientes de {len(targets)} "
+               "artistas (sin gastar cuota de Spotify)")
+        batches = [recent_mb(n) for n in targets]  # secuencial: 1 petición/s
+    else:
+        avisar(f"mirando los discos recientes de {len(targets)} artistas")
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            batches = list(pool.map(recent_for, targets))
 
     de_los_tuyos, alrededor, seen_albums = [], [], set()
     for name, albums in zip(targets, batches):
@@ -123,13 +148,14 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
                              else f"{name}, cercano a lo que escuchas")
             (de_los_tuyos if es_mio else alrededor).append(row)
 
-    avisar("revisando las novedades destacadas de Spotify")
     destacadas = []
-    try:
-        novedades_spotify = sp.new_releases(50)
-    except SpotifyRateLimited as e:
-        novedades_spotify = []
-        warnings.append(str(e))
+    novedades_spotify = []
+    if not mb:  # en modo gratuito ni se intenta: el endpoint está cerrado igual
+        avisar("revisando las novedades destacadas de Spotify")
+        try:
+            novedades_spotify = sp.new_releases(50)
+        except SpotifyRateLimited as e:
+            warnings.append(str(e))
     for a in novedades_spotify:
         if (a.get("release_date") or "") < cutoff or a.get("id") in seen_albums:
             continue
@@ -137,7 +163,7 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
         if norm(artist) in known:
             continue
         destacadas.append(_album_row(a, "novedad destacada en Spotify"))
-    if not destacadas:
+    if not destacadas and not mb:
         warnings.append("Spotify no devolvió novedades destacadas "
                         "(endpoint cerrado a apps nuevas); se usa solo tu órbita.")
 
@@ -155,6 +181,7 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
 
     return {
         "desde": cutoff,
+        "fuente": "MusicBrainz (sin cuota de Spotify)" if mb else "Spotify",
         "artistas_consultados": consultados,
         "artistas_no_comprobados": fallos or None,
         "peticiones_a_spotify": SpotifyClient.peticiones - peticiones_al_empezar,
