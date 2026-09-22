@@ -67,6 +67,7 @@ class SpotifyClient:
     _limiter = _RateLimiter(8.0)
     peticiones = 0     # contador para saber cuánto cuesta cada operación
     limitaciones = 0   # cuántas veces nos han frenado con un 429
+    bloqueado_hasta = 0.0  # marca de tiempo hasta la que Spotify nos frena
 
     def __init__(self, client_id: str, redirect_uri: str):
         self.client_id = client_id
@@ -160,9 +161,21 @@ class SpotifyClient:
 
     # ---------- HTTP con token ----------
 
+    @classmethod
+    def segundos_bloqueado(cls) -> int:
+        """Cuánto queda del castigo de Spotify (0 si no hay)."""
+        return max(0, round(cls.bloqueado_hasta - time.time()))
+
     def _request(self, method: str, path: str, **kwargs) -> dict:
         if not self._token:
             raise SpotifyAuthError("Sesión no iniciada")
+        restante = self.segundos_bloqueado()
+        if restante:
+            # no gastar más cuota mientras dura el castigo: solo lo alarga
+            raise SpotifyRateLimited(
+                f"Spotify sigue limitando la app: quedan {restante} s "
+                f"({restante // 60} min). No se lanzan más peticiones hasta "
+                "entonces.")
         if time.time() >= self._token.get("expires_at", 0):
             self._refresh()
         for attempt in range(3):
@@ -176,13 +189,14 @@ class SpotifyClient:
             if resp.status_code == 429:
                 espera = int(resp.headers.get("Retry-After", "2"))
                 type(self).limitaciones += 1
+                type(self).bloqueado_hasta = time.time() + espera
                 log.warning("Spotify 429 en %s: pide esperar %ss", path, espera)
                 if espera > MAX_ESPERA_429:
                     raise SpotifyRateLimited(
                         f"Spotify ha limitado la app y pide esperar {espera} s "
-                        f"({espera // 60} min). Es la cuota del modo desarrollo: "
-                        "espera un rato antes de volver a pedir consultas "
-                        "grandes.")
+                        f"({espera // 60} min). Es la cuota del modo desarrollo, "
+                        "que se comparte entre todas tus consultas: no insistas, "
+                        "espera y evita mientras tanto las consultas grandes.")
                 time.sleep(espera + 1)
                 continue
             if resp.status_code == 401 and attempt == 0:

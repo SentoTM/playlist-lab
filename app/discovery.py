@@ -10,7 +10,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from .clients.lastfm import LastfmClient
-from .clients.spotify import SpotifyClient
+from .clients.spotify import SpotifyClient, SpotifyRateLimited
 from .clients.statsfm import StatsfmClient
 from .text import norm
 
@@ -77,22 +77,33 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
     mine, neighbours = orbit_artists(sp, lf)
     warnings = []
 
-    def recent_for(name: str) -> list[dict]:
-        """Discos recientes de un artista. Un fallo suyo no tumba la tanda.
+    fallos: dict[str, int] = {}
 
-        Sin `artist_name` a propósito: el endpoint ya devuelve lo más nuevo
-        primero y completar con búsqueda dispararía el número de peticiones.
+    def recent_for(name: str) -> list[dict]:
+        """Discos recientes de un artista.
+
+        Un fallo suyo no tumba la tanda, pero SE CUENTA: tragarse los errores
+        en silencio hacía que una limitación de cuota de Spotify se
+        presentara como "no hay novedades", que es justo la conclusión
+        equivocada.
         """
         try:
             found = sp.search_artist(name, limit=1)
             if not found:
+                fallos["no está en Spotify"] = fallos.get("no está en Spotify", 0) + 1
                 return []
             albums = sp.artist_albums(found[0]["id"], limit=10)
             return [a for a in albums
                     if (a.get("release_date") or "") >= cutoff
                     and a.get("album_type") in ("album", "single")]
+        except SpotifyRateLimited:
+            fallos["límite de cuota de Spotify"] = \
+                fallos.get("límite de cuota de Spotify", 0) + 1
+            return []
         except Exception as e:  # noqa: BLE001
             log.warning("Discos recientes de %s fallaron: %s", name, e)
+            clave = type(e).__name__
+            fallos[clave] = fallos.get(clave, 0) + 1
             return []
 
     targets = (mine[:max_artists // 2] if include_known_artists else []) + \
@@ -114,7 +125,12 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
 
     avisar("revisando las novedades destacadas de Spotify")
     destacadas = []
-    for a in sp.new_releases(50):
+    try:
+        novedades_spotify = sp.new_releases(50)
+    except SpotifyRateLimited as e:
+        novedades_spotify = []
+        warnings.append(str(e))
+    for a in novedades_spotify:
         if (a.get("release_date") or "") < cutoff or a.get("id") in seen_albums:
             continue
         artist = (a.get("artists") or [{}])[0].get("name", "")
@@ -128,8 +144,19 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
     for lst in (de_los_tuyos, alrededor, destacadas):
         lst.sort(key=lambda r: r["date"], reverse=True)
 
+    consultados = len(targets)
+    fallidos = sum(fallos.values())
+    if fallidos:
+        detalle = ", ".join(f"{n} por {motivo}" for motivo, n in fallos.items())
+        warnings.append(
+            f"De {consultados} artistas consultados, {fallidos} no se pudieron "
+            f"comprobar ({detalle}). Las listas de abajo están INCOMPLETAS: no "
+            "concluyas que no hay novedades.")
+
     return {
         "desde": cutoff,
+        "artistas_consultados": consultados,
+        "artistas_no_comprobados": fallos or None,
         "peticiones_a_spotify": SpotifyClient.peticiones - peticiones_al_empezar,
         "de_los_tuyos": de_los_tuyos,
         "alrededor": alrededor,

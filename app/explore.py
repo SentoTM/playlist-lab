@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from .clients.lastfm import LastfmClient
 from .clients.musicbrainz import MusicbrainzClient
-from .clients.spotify import SpotifyClient
+from .clients.spotify import SpotifyClient, SpotifyRateLimited
 from .clients.wikipedia import WikipediaClient
 from .text import norm
 
@@ -146,17 +146,28 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
     pequenos = [x for x in pequenos if x[1]["listeners"] >= 500]
     pequenos.sort(key=lambda x: x[1]["listeners"])
 
+    fallos: dict[str, int] = {}
+
     def ultimo_disco(name: str) -> dict | None:
-        found = sp.search_artist(name, limit=1)
-        if not found:
+        try:
+            found = sp.search_artist(name, limit=1)
+            if not found:
+                return None
+            albums = [a for a in sp.artist_albums(found[0]["id"], limit=10)
+                      if a.get("album_type") in ("album", "single")]
+            if not albums:
+                return None
+            ultimo = max(albums, key=lambda a: a.get("release_date", ""))
+            return {"album": ultimo.get("name"), "fecha": ultimo.get("release_date"),
+                    "tipo": ultimo.get("album_type"), "id": ultimo.get("id")}
+        except SpotifyRateLimited:
+            fallos["límite de cuota de Spotify"] = \
+                fallos.get("límite de cuota de Spotify", 0) + 1
             return None
-        albums = [a for a in sp.artist_albums(found[0]["id"], limit=10)
-                  if a.get("album_type") in ("album", "single")]
-        if not albums:
+        except Exception as e:  # noqa: BLE001
+            log.warning("Último disco de %s falló: %s", name, e)
+            fallos[type(e).__name__] = fallos.get(type(e).__name__, 0) + 1
             return None
-        ultimo = max(albums, key=lambda a: a.get("release_date", ""))
-        return {"album": ultimo.get("name"), "fecha": ultimo.get("release_date"),
-                "tipo": ultimo.get("album_type"), "id": ultimo.get("id")}
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         discos = list(pool.map(ultimo_disco, [n for n, _ in pequenos[:limit]]))
@@ -177,6 +188,9 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
     activos.sort(key=lambda r: r["ultimo_disco"]["fecha"], reverse=True)
     return {
         "generos_buscados": genres[:4],
+        "avisos": ([f"{n} artistas no se pudieron comprobar en Spotify por "
+                    f"{motivo}; la lista está incompleta"
+                    for motivo, n in fallos.items()] or None),
         "embudo": {"candidatos_de_las_etiquetas": len(unicos),
                    "consultados_en_lastfm": len(escaneados),
                    "bajo_el_tope_de_oyentes": len(pequenos),

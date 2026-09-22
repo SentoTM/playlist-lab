@@ -15,6 +15,27 @@ Probado contra las APIs reales y funcionando: `status`, `taste_profile`,
 `find_underrated`, `artist_context`, `verify`, `music_press` (los 8 feeds
 responden), `search`, `album_info`.
 
+## La trampa que nos costó dos días
+
+`new_releases` devolvía listas vacías y fuimos encontrando cuatro causas
+reales encadenadas (límite de `limit`, orden no garantizado, respuestas que no
+eran JSON, lentitud). La quinta y definitiva: **habíamos agotado la cuota de
+Spotify del modo desarrollo** a fuerza de probar, y la API respondía 429
+pidiendo esperar 77 minutos.
+
+Lo grave no fue el 429, sino que no se veía: el `except Exception` que se
+puso para que el fallo de un artista no tumbara la tanda convertía "Spotify me
+está frenando" en "este artista no tiene novedades", y el resultado era una
+lista vacía con aspecto de respuesta legítima. **Un error tragado en silencio
+es peor que un error ruidoso**: nos hizo perseguir cuatro bugs que sí existían
+pero que no eran el problema del momento.
+
+Correcciones: los fallos se cuentan por motivo y salen en `warnings` diciendo
+que la lista está incompleta; mientras dura un 429 largo no se lanza ni una
+petición más (insistir solo alarga el castigo); y `known_artists`, que cuesta
+unas 30 peticiones, se cachea en disco 12 h para que reiniciar el servidor no
+vuelva a pagarlas.
+
 ## Pendiente de comprobar (tras el próximo reinicio)
 
 1. `new_releases` — cuarta causa del mismo síntoma. Ya no falla y tarda 13 s,
@@ -68,5 +89,11 @@ lo pone el modelo, la actualidad `music_press` y los datos duros MusicBrainz.
 
 Lección transversal: **ninguna de estas APIs es de fiar**. Devuelven HTML
 cuando esperas JSON, cambian límites sin avisar y cierran endpoints. Todo
-cliente nuevo debe capturar también `ValueError`, degradar a lista vacía y
-dejar un aviso, nunca tumbar la operación entera.
+cliente nuevo debe capturar también `ValueError` y degradar en vez de tumbar
+la operación entera — pero **degradar dejando rastro**: contar el fallo y
+decirlo en la respuesta. Una lista vacía sin explicación es una mentira.
+
+Y la cuota importa: cada tanda de pruebas gasta de un saldo compartido que
+tarda más de una hora en reponerse. Antes de lanzar una consulta grande,
+mirar `status`, que ahora dice si Spotify nos tiene frenados y qué hay en
+caché.

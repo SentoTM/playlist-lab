@@ -18,11 +18,11 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import discovery, explore, jobs, library, notes, taste  # noqa: E402
+from app import cache, discovery, explore, jobs, library, notes, taste  # noqa: E402
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.press import FEEDS, PressClient     # noqa: E402
-from app.clients.spotify import SpotifyClient        # noqa: E402
+from app.clients.spotify import SpotifyClient, SpotifyRateLimited  # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
 from app.clients.wikipedia import WikipediaClient    # noqa: E402
 from app.text import norm                            # noqa: E402
@@ -62,7 +62,10 @@ def _known(sp, lf, sf) -> dict:
     'ya lo conoce', así que ninguna herramienta de descubrimiento los
     propondrá por su cuenta.
     """
-    conocidos = dict(_cached("known", lambda: taste.known_artists(sp, lf, sf)))
+    # a disco y 12 h: reconstruirlo cuesta ~30 peticiones y apenas cambia,
+    # y el servidor MCP se reinicia cada vez que se toca el código
+    conocidos = dict(cache.recordar("known", 12 * 3600,
+                                    lambda: taste.known_artists(sp, lf, sf)))
     artistas = notes.cargar()["artistas"]
     for clave, veredicto in notes.vetados().items():
         conocidos.setdefault(clave, {"artist": artistas[clave]["artista"]})
@@ -108,11 +111,21 @@ def status() -> dict:
             "): dile al usuario que entre en http://127.0.0.1:8888, pulse "
             "'salir' y vuelva a iniciar sesión. Mientras tanto, no uses "
             "now_playing ni cuentes con los artistas que sigue.")
+    bloqueo = SpotifyClient.segundos_bloqueado()
+    if bloqueo:
+        avisos.append(
+            f"Spotify tiene limitada la app {bloqueo // 60} min más (cuota del "
+            "modo desarrollo). Evita consultas grandes hasta entonces; lo "
+            "cacheado sigue funcionando.")
     return {
         "spotify_configured": bool(os.getenv("SPOTIFY_CLIENT_ID")),
         "spotify_session": user,
         "lastfm": bool(lf), "statsfm": bool(sf),
         "permisos_que_faltan": faltan,
+        "spotify_bloqueado_segundos": bloqueo,
+        "peticiones_a_spotify_en_esta_sesion": SpotifyClient.peticiones,
+        "veces_limitado": SpotifyClient.limitaciones,
+        "cache_en_disco": cache.estado(),
         "warnings": avisos,
     }
 
@@ -339,7 +352,7 @@ def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
 
     def calcular(paso):
         paso("leyendo lo que ya conoces (tops, biblioteca, Last.fm, stats.fm)")
-        known = _cached("known", lambda: taste.known_artists(sp, lf, sf))
+        known = _known(sp, lf, sf)
         return discovery.new_releases(sp, lf, sf, known, months,
                                       include_known_artists, paso=paso)
 
@@ -434,7 +447,7 @@ def remember(tipo: str, sujeto: str, veredicto: str = "", nota: str = "",
         entrada = notes.anotar(tipo, sujeto, veredicto, nota, album)
     except ValueError as e:
         return {"error": str(e)}
-    _cache.pop("known", None)  # el veto cambia lo que es proponible
+    cache.olvidar("known")  # el veto cambia lo que es proponible
     return {"guardado": entrada,
             "veredictos_posibles": notes.VEREDICTOS if not veredicto else None}
 
@@ -458,7 +471,7 @@ def forget_note(tipo: str, sujeto: str, album: str = "") -> dict:
     ese artista.
     """
     borrado = notes.olvidar(tipo, sujeto, album)
-    _cache.pop("known", None)
+    cache.olvidar("known")
     return {"borrado": borrado,
             "nota": "No había nota que borrar" if not borrado else "Hecho"}
 
