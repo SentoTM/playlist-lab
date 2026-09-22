@@ -63,10 +63,10 @@ def _known(sp, lf, sf) -> dict:
     propondrá por su cuenta.
     """
     conocidos = dict(_cached("known", lambda: taste.known_artists(sp, lf, sf)))
-    for clave, nota in notes.cargar()["artistas"].items():
-        if nota.get("veredicto") in notes.VETOS:
-            conocidos.setdefault(clave, {"artist": nota["artista"]})
-            conocidos[clave]["descartado_por_ti"] = nota.get("veredicto")
+    artistas = notes.cargar()["artistas"]
+    for clave, veredicto in notes.vetados().items():
+        conocidos.setdefault(clave, {"artist": artistas[clave]["artista"]})
+        conocidos[clave]["descartado_por_ti"] = veredicto
     return conocidos
 
 
@@ -384,6 +384,28 @@ def verify(artist: str, album: str = "", discography: bool = False) -> dict:
     return out
 
 
+# ---------- cómo quiere que le propongan ----------
+
+@mcp.tool()
+def curation_guide() -> dict:
+    """CÓMO escuchar y proponerle música. Léelo antes de curar nada.
+
+    No es una lista de géneros: es su criterio (personalidad por encima de
+    ejecución, qué entiende por "garra"), sus reglas prácticas (experimental
+    solo con punto de anclaje, no repetir siempre el mismo eje, el directo
+    cuenta), el formato de "menú de cinco" que prefiere, las cuatro
+    dimensiones con que etiquetar una propuesta y —importante— cómo mide el
+    éxito: una recomendación que no le gusta pero le hace entender por qué un
+    disco importa es un acierto, no un fallo.
+
+    Vive en datos/perfil.md y él lo edita a mano cuando cambia de idea.
+    """
+    ruta = Path(__file__).resolve().parent / "datos" / "perfil.md"
+    if not ruta.exists():
+        return {"error": "No hay datos/perfil.md todavía."}
+    return {"guia": ruta.read_text(encoding="utf-8")}
+
+
 # ---------- tus opiniones ----------
 
 @mcp.tool()
@@ -397,9 +419,12 @@ def remember(tipo: str, sujeto: str, veredicto: str = "", nota: str = "",
 
     tipo: "artista", "album" (pasa también `album`) o "general" (una
     preferencia suya: "las playlists de más de hora y media no las oigo").
-    veredicto: "me encanta", "me gusta", "no es lo mío", "nunca más" o
-    "pendiente". Los dos negativos vetan al artista: dejará de aparecer en
-    las herramientas de descubrimiento.
+    veredicto: "me encanta", "me gusta", "sin pena ni gloria", "no es para mí
+    pero lo entiendo", "no es lo mío", "nunca más", "pendiente" o
+    "escuchado". Ojo: para él una recomendación NO fracasa por no gustarle,
+    así que "sin pena ni gloria" y "no es para mí pero lo entiendo" no
+    descartan nada (siguen valiendo para una segunda escucha). Solo "nunca
+    más" y "no es lo mío" sacan al artista del descubrimiento.
     `nota`: con sus palabras y el motivo, que es lo que sirve después.
 
     Ante la duda de si merece guardarse, guárdalo: cuesta poco y no
@@ -628,7 +653,7 @@ def curar_playlist(encargo: str = "") -> str:
     return f"""Eres el curador musical de este usuario. Encargo: {encargo or '(pregunta qué le apetece)'}
 
 Método:
-1. Llama a taste_profile y a my_notes, y lee con calma: fase actual, géneros principales, qué escucha ahora vs. históricamente, y sobre todo qué ya ha juzgado (lo vetado no se propone; lo que le encanta es buena referencia para buscar parecidos).
+1. Llama a curation_guide, taste_profile y my_notes, y lee con calma: fase actual, géneros principales, qué escucha ahora vs. históricamente, y sobre todo qué ya ha juzgado (lo vetado no se propone; lo que le encanta es buena referencia para buscar parecidos).
 2. Piensa como un crítico que conoce escenas, sellos, discografías y reseñas (no como un algoritmo de similitud): busca artistas y discos que encajen con su gusto pero que probablemente no conozca, o que amplíen en una dirección coherente. Mezcla épocas y evita los nombres obvios salvo que el encargo lo pida. Tu criterio es el valor que aportas; las herramientas solo te dan los datos.
 2b. Si te faltan nombres, tira de las herramientas de exploración: explore_genre para el mapa de un género, explore_era para los clásicos de una franja, explore_scene para un lugar, discover_emerging para lo que acaba de salir y find_underrated para lo de culto.
 3. Si el encargo mira al presente (novedades, "lo último", este año), llama a new_releases y a music_press: tu conocimiento tiene fecha de corte y ahí es donde te equivocarás.
@@ -648,7 +673,7 @@ def explorar(tema: str = "") -> str:
 No hagas una lista: cuenta una historia y que la lista salga de ella.
 
 1. Sitúa el terreno. Según el tema, explore_genre (qué es y quién lo puebla), explore_era (los clásicos de una franja de años, con fechas reales), explore_scene (un lugar y lo que salió de allí) o artist_context (un artista a fondo).
-2. Mira taste_profile y my_notes para enganchar lo nuevo con lo que ya escucha y no repetir lo que ya descartó: un viaje se entiende mejor desde casa. check_known te dice qué parte ya ha pisado y qué opinó.
+2. Mira curation_guide, taste_profile y my_notes para enganchar lo nuevo con lo que ya escucha y no repetir lo que ya descartó: un viaje se entiende mejor desde casa. check_known te dice qué parte ya ha pisado y qué opinó.
 3. Aporta lo que las herramientas no tienen: por qué ese disco cambió algo, qué escuchaba la gente antes y después, qué grupo es el eslabón. Ese relato es tu trabajo; los datos solo lo sostienen.
 4. Si el tema mira al presente, discover_emerging y music_press. Si busca rarezas, find_underrated sobre tus sospechas.
 5. Contrasta con verify todo año, sello o formación antes de afirmarlo.

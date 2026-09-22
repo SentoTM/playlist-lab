@@ -20,15 +20,24 @@ from .text import norm
 ARCHIVO = Path(__file__).resolve().parents[1] / "datos" / "notas.json"
 _lock = threading.Lock()
 
-# El veredicto es lo que filtra; la nota es lo que explica.
+# Los veredictos son los suyos, no una escala genérica: para él una
+# recomendación NO fracasa por no gustarle, así que "sin pena ni gloria" y
+# "no es para mí pero lo entiendo" no descartan nada — siguen siendo
+# candidatos a una segunda escucha.
 VEREDICTOS = {
-    "me encanta": "favorito; puede reaparecer y sirve de referencia para buscar parecidos",
-    "me gusta": "aprobado",
-    "no es lo mío": "no insistir, salvo que el encargo lo pida expresamente",
+    "me encanta": "favorito; profundizar en esa dirección y usarlo de referencia",
+    "me gusta": "buena dirección",
+    "sin pena ni gloria": "no le atravesó; no es mala música, cabe revisitarlo",
+    "no es para mí pero lo entiendo": ("no le gusta pero entiende por qué importa; "
+                                       "para él esto es un éxito, no un fallo"),
+    "no es lo mío": "evitar salvo que el encargo lo pida expresamente",
     "nunca más": "vetado: no proponer jamás",
     "pendiente": "quiere escucharlo, aún sin juicio",
+    "escuchado": "ya lo ha escuchado; no ofrecerlo como novedad",
 }
-VETOS = {"nunca más", "no es lo mío"}
+VETOS = {"nunca más"}                 # veto duro
+EVITAR = {"no es lo mío"}             # evitar, pero no es un veto absoluto
+YA_VISTOS = VETOS | EVITAR | {"escuchado"}
 
 
 def _vacio() -> dict:
@@ -129,7 +138,19 @@ def para(nombres: list[str]) -> dict[str, dict]:
     return {n: datos[norm(n)] for n in nombres if norm(n) in datos}
 
 
-def vetados() -> set[str]:
-    """Artistas que no deben proponerse (normalizados)."""
+def vetados() -> dict[str, str]:
+    """Artistas que no deben salir en descubrimiento: {clave: veredicto}.
+
+    Incluye los vetados y los evitados, pero NO los que simplemente no le
+    llegaron: esos siguen siendo candidatos a una segunda escucha.
+    """
     datos = cargar()["artistas"]
-    return {k for k, v in datos.items() if v.get("veredicto") in VETOS}
+    return {k: v["veredicto"] for k, v in datos.items()
+            if v.get("veredicto") in (VETOS | EVITAR)}
+
+
+def albumes_escuchados() -> set[str]:
+    """Álbumes que ya ha escuchado (clave normalizada artista::album)."""
+    datos = cargar()["albumes"]
+    return {k for k, v in datos.items()
+            if v.get("veredicto") and v["veredicto"] != "pendiente"}

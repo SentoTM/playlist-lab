@@ -22,6 +22,10 @@ FEEDS = {
     "mondosonoro": ("Mondo Sonoro", "https://www.mondosonoro.com/feed/"),
     "jenesaispop": ("Jenesaispop", "https://jenesaispop.com/feed/"),
     "stereogum": ("Stereogum", "https://www.stereogum.com/feed/"),
+    "soyoung": ("So Young", "https://soyoungmagazine.com/feed/"),
+    "bestfit": ("The Line of Best Fit", "https://www.thelineofbestfit.com/feed"),
+    "dork": ("Dork", "https://readdork.com/feed/"),
+    "diy": ("DIY", "https://diymag.com/feed"),
     "brooklynvegan": ("BrooklynVegan", "https://www.brooklynvegan.com/feed/"),
 }
 

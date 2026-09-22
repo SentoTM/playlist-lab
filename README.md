@@ -75,8 +75,9 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `artist_context` | bio, ficha, formación, historia y discografía real de un artista |
 | `artist_releases` | discografía en Spotify, de lo más nuevo a lo más viejo |
 
-| Tus opiniones | |
+| Tu criterio | |
 |---|---|
+| `curation_guide` | cómo escuchas y cómo quieres que se te proponga música (`datos/perfil.md`) |
 | `remember` | guarda lo que opinas de un artista, un disco o en general |
 | `my_notes` | todo lo juzgado hasta ahora, agrupado por veredicto |
 | `forget_note` | borra una nota cuando cambias de opinión |
@@ -88,18 +89,29 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 
 Dos prompts guían el uso: `curar_playlist` (leer el perfil → proponer como un crítico, no como un algoritmo → filtrar conocidos → verificar → presentar y confirmar → crear) y `explorar` (situar el terreno → engancharlo con lo que ya escuchas → contar por qué importa → proponer un recorrido corto).
 
-### Tus opiniones
+### Tu criterio y tus opiniones
 
-Los datos de escucha dicen qué has puesto, no qué te pareció: un disco que
-odiaste tras una escucha y otro que no repites porque te lo sabes de memoria
-se ven idénticos desde fuera. `remember` guarda ese juicio —"me encanta", "me
-gusta", "no es lo mío", "nunca más", "pendiente"— con tus palabras y el
-motivo. Los dos veredictos negativos **vetan** al artista: deja de aparecer en
-las herramientas de descubrimiento, igual que si ya lo conocieras. Y
-`check_known` devuelve tu opinión junto a la evidencia de escucha, así que al
-proponer se ve de un vistazo si ya lo descartaste.
+Dos ficheros en `datos/` (fuera de git, porque son tuyos) sostienen la parte
+que ninguna API puede dar.
 
-Se guarda en `datos/notas.json`, fuera de git porque es tuyo.
+**`perfil.md`** es la guía de curación: cómo escuchas, no qué escuchas.
+Personalidad por encima de ejecución, qué entiendes por "garra", la regla de
+que lo experimental entra si conserva un punto de anclaje, el formato de menú
+de cinco, las cuatro dimensiones (afinidad, historia, frontera,
+descubrimiento) y cómo mides el éxito. Lo edita uno a mano y `curation_guide`
+lo sirve tal cual.
+
+**`notas.json`** guarda tus juicios. Los datos de escucha dicen qué has
+puesto, no qué te pareció: un disco que odiaste tras una escucha y otro que no
+repites porque te lo sabes de memoria se ven idénticos desde fuera.
+`remember` registra el veredicto con tus palabras y el motivo. La escala es la
+tuya, y esto importa: *sin pena ni gloria* y *no es para mí pero lo entiendo*
+**no descartan nada**, porque para ti una recomendación no fracasa por no
+gustarte. Solo *nunca más* y *no es lo mío* sacan al artista del
+descubrimiento. `check_known` devuelve tu opinión junto a la evidencia de
+escucha, así que al proponer se ve de un vistazo qué pasó con eso.
+
+`scripts/sembrar_notas.py` hace la carga inicial a partir de lo ya escuchado.
 
 ### Por qué estas fuentes y no AOTY o RateYourMusic
 
