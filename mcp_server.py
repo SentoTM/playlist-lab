@@ -62,13 +62,22 @@ PERFIL_TTL = 6 * 3600
 
 def _biblioteca(sp) -> dict:
     """La biblioteca guardada, cacheada en disco: es lo único que pedimos a
-    Spotify para el perfil, y es lo que nadie más tiene."""
-    def traer():
-        try:
-            return taste.library(sp)
-        except SpotifyRateLimited:
-            return {}
-    return cache.recordar("biblioteca", BIBLIOTECA_TTL, traer) or {}
+    Spotify para el perfil, y es lo que nadie más tiene.
+
+    Si Spotify nos tiene frenados NO se cachea el fallo: guardar un vacío
+    durante siete días convertiría un problema de una hora en una semana de
+    perfil incompleto.
+    """
+    hay, valor = cache.obtener("biblioteca", BIBLIOTECA_TTL)
+    if hay:
+        return valor or {}
+    try:
+        valor = taste.library(sp)
+    except SpotifyRateLimited as e:
+        log.warning("Biblioteca no disponible ahora: %s", e)
+        return {}
+    cache.guardar("biblioteca", valor)
+    return valor
 
 
 def _known(sp, lf, sf) -> dict:
@@ -79,9 +88,15 @@ def _known(sp, lf, sf) -> dict:
     propondrá por su cuenta.
     """
     # Sin cuota de Spotify: stats.fm + Last.fm + la biblioteca ya cacheada
-    conocidos = dict(cache.recordar(
-        "known", CONOCIDOS_TTL,
-        lambda: taste.known_artists(sf, lf, _biblioteca(sp))))
+    hay, guardado = cache.obtener("known", CONOCIDOS_TTL)
+    if hay:
+        conocidos = dict(guardado)
+    else:
+        biblio = _biblioteca(sp)
+        conocidos = taste.known_artists(sf, lf, biblio)
+        if biblio:  # sin biblioteca el mapa está cojo: no lo fijamos 12 h
+            cache.guardar("known", conocidos)
+        conocidos = dict(conocidos)
     artistas = notes.cargar()["artistas"]
     for clave, veredicto in notes.vetados().items():
         conocidos.setdefault(clave, {"artist": artistas[clave]["artista"]})
