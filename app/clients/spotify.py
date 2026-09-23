@@ -35,6 +35,10 @@ log = logging.getLogger("playlist_lab.spotify")
 MAX_ESPERA_429 = 10  # segundos; por encima, mejor avisar que quedarse colgado
 
 
+class SpotifyBadRequest(RuntimeError):
+    """Spotify rechaza los parámetros: casi siempre, un cambio en su API."""
+
+
 class SpotifyRateLimited(RuntimeError):
     """Spotify pide una espera demasiado larga para aguantarla en caliente."""
 
@@ -208,17 +212,28 @@ class SpotifyClient:
         return {}
 
     def _get(self, path: str, **params) -> dict:
-        """GET que degrada con gracia: un 400/404 (p. ej. artistas raros en
-        /artists/{id}/albums) devuelve {} y deja un aviso en el log, en vez de
-        tumbar toda la generación. Los errores de auth (401/403) sí se propagan."""
+        """GET a la API. Un 404 (no existe) devuelve {}; un 400 SE PROPAGA.
+
+        Antes el 400 también se convertía en {}, y nos costó caro tres veces:
+        en /artists/{id}/albums, en /search y en /playlists/{id}/items el 400
+        era siempre un parámetro nuestro que Spotify había dejado de aceptar
+        (el tope de `limit`), y lo único que se veía era una lista vacía con
+        aspecto de respuesta legítima. Un 400 casi siempre es un fallo
+        nuestro: mejor que se vea.
+        """
         try:
             return self._request("GET", path,
                                  params={k: v for k, v in params.items() if v is not None})
         except httpx.HTTPStatusError as e:
-            if e.response.status_code in (400, 404):
-                log.warning("Spotify %s en %s (%s): se ignora",
-                            e.response.status_code, path, e.response.text[:120])
+            if e.response.status_code == 404:
+                log.warning("Spotify 404 en %s: se ignora", path)
                 return {}
+            if e.response.status_code == 400:
+                raise SpotifyBadRequest(
+                    f"Spotify rechazó la petición a {path} con los parámetros "
+                    f"{params}: {e.response.text[:200]}. Suele ser un parámetro "
+                    "que Spotify ha dejado de aceptar (p. ej. un tope de "
+                    "`limit` más bajo).") from e
             raise
 
     # ---------- Endpoints ----------
@@ -275,12 +290,19 @@ class SpotifyClient:
         return out
 
     def playlist_tracks(self, playlist_id: str, max_items: int = 200) -> list[dict]:
+        """Contenido de una playlist.
+
+        Dos cambios de Spotify (sep. 2026): `limit` admite como máximo 50
+        (con 100 respondía 400 y la lista parecía vacía), y la canción viene
+        bajo la clave `item`; `track` está deprecada y puede no venir.
+        """
         out = []
-        for offset in range(0, max_items, 100):
+        for offset in range(0, max_items, 50):
             items = self._get(f"/playlists/{playlist_id}/items",
-                              limit=100, offset=offset).get("items", [])
-            out.extend([i["track"] for i in items if i.get("track")])
-            if len(items) < 100:
+                              limit=50, offset=offset).get("items", [])
+            out.extend([i.get("item") or i.get("track") for i in items
+                        if i.get("item") or i.get("track")])
+            if len(items) < 50:
                 break
         return out
 
