@@ -13,6 +13,22 @@ from collections import Counter
 import httpx
 
 log = logging.getLogger("playlist_lab.kexp")
+
+# La rotación dice cuánto está APOSTANDO la emisora por una canción: Heavy es
+# una apuesta fuerte por algo nuevo; Library es fondo de catálogo. Pesa más
+# que el simple número de emisiones, que depende del azar de la muestra.
+PESO_ROTACION = {"Heavy": 3.0, "Medium": 2.0, "Light": 1.0, "R/N": 1.0,
+                 "Recurrent": 0.5, "Library": 0.0}
+
+
+def _sello(p: dict):
+    sello = (p.get("labels") or [None])[0]
+    return None if sello in (None, "", "[no label]") else sello
+
+
+def _es_sesion(p: dict) -> bool:
+    """Las sesiones en directo de KEXP salen como disco 'Live on KEXP'."""
+    return "live on kexp" in (p.get("album") or "").lower() or _sello(p) == "KEXP"
 API = "https://api.kexp.org/v2"
 HEADERS = {"User-Agent": "playlist-lab/0.2 (uso personal)", "Accept": "application/json"}
 
@@ -50,11 +66,11 @@ class KexpClient:
                     "artist": p.get("artist"),
                     "song": p.get("song"),
                     "album": p.get("album"),
-                    "sello": (p.get("labels") or [None])[0],
+                    "sello": _sello(p),
                     "año": (p.get("release_date") or "")[:4],
                     "fecha_emision": (p.get("airdate") or "")[:10],
-                    "programa": (p.get("show") or ""),
                     "rotacion": p.get("rotation_status"),
+                    "sesion_en_directo": _es_sesion(p),
                     "local": p.get("is_local"),
                 })
             if len(filas) < min(limit, 100) or len(out) >= limit:
@@ -70,15 +86,30 @@ class KexpClient:
         por la emisora, no es una coincidencia.
         """
         plays = self.plays(limit=muestras, desde_dias=desde_dias)
-        cuenta: Counter = Counter()
+        veces: Counter = Counter()
+        apuesta: Counter = Counter()
         ejemplo: dict[str, dict] = {}
+        sesion: set[str] = set()
         for p in plays:
-            cuenta[p["artist"]] += 1
-            ejemplo.setdefault(p["artist"], p)
-        return [{"artist": nombre, "veces_emitido": n,
-                 "ejemplo": {k: ejemplo[nombre].get(k)
+            a = p["artist"]
+            veces[a] += 1
+            apuesta[a] += PESO_ROTACION.get(p.get("rotacion") or "", 0.5)
+            if p.get("sesion_en_directo"):
+                sesion.add(a)
+            # como ejemplo, mejor un disco de estudio que la sesión
+            if a not in ejemplo or (ejemplo[a].get("sesion_en_directo")
+                                    and not p.get("sesion_en_directo")):
+                ejemplo[a] = p
+        # un artista sin rotación (solo fondo de catálogo) no es una apuesta
+        puntua = {a: apuesta[a] + (2.0 if a in sesion else 0.0) for a in veces}
+        ranking = sorted(veces, key=lambda a: (puntua[a], veces[a]), reverse=True)
+        return [{"artist": a, "veces_emitido": veces[a],
+                 "apuesta_de_la_emisora": round(puntua[a], 1),
+                 "sesion_en_directo": a in sesion,
+                 "rotacion": ejemplo[a].get("rotacion"),
+                 "ejemplo": {k: ejemplo[a].get(k)
                              for k in ("song", "album", "sello", "año")}}
-                for nombre, n in cuenta.most_common(60)]
+                for a in ranking[:60]]
 
     def emisiones_de(self, artista: str, desde_dias: int = 365) -> list[dict]:
         """¿Ha pinchado KEXP a este artista? Señal de que alguien con criterio
@@ -88,6 +119,7 @@ class KexpClient:
         data = self._get("/plays/", artist=artista, limit=30, airdate_after=desde)
         return [{"song": p.get("song"), "album": p.get("album"),
                  "fecha_emision": (p.get("airdate") or "")[:10],
-                 "programa": p.get("show")}
+                 "rotacion": p.get("rotation_status"),
+                 "sesion_en_directo": _es_sesion(p)}
                 for p in (data.get("results") or [])
                 if p.get("play_type") == "trackplay"]

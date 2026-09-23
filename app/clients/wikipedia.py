@@ -40,6 +40,18 @@ def _es_del_tema(query: str, titulo: str, resumen: str) -> bool:
     return q in primera or qc in primera.replace(" ", "")
 
 
+# Buscar "Gurriers banda grupo musical" en la Wikipedia inglesa no encuentra
+# nada: la pista tiene que ir en el idioma de cada edición.
+_PISTAS_EN = {"banda grupo musical": "band", "género musical": "music genre",
+              "álbum": "album", "música escena": "music scene"}
+
+
+def _traducir_pista(pista: str, lang: str) -> str:
+    if not pista or lang == "es":
+        return pista
+    return _PISTAS_EN.get(pista, "")
+
+
 class WikipediaClient:
     def __init__(self, langs: tuple[str, ...] = ("es", "en")):
         self.langs = langs
@@ -83,8 +95,9 @@ class WikipediaClient:
         `hint` acota la búsqueda ('banda', 'álbum', 'género musical') para no
         acabar en el artículo equivocado cuando el nombre es ambiguo.
         """
-        intentos = [f"{query} {hint}".strip(), query] if hint else [query]
         for lang in self.langs:
+            pista = _traducir_pista(hint, lang)
+            intentos = [f"{query} {pista}".strip(), query] if pista else [query]
             for consulta in intentos:
                 for result in self._search(lang, consulta, 3):
                     summary = self._summary(lang, result["title"])

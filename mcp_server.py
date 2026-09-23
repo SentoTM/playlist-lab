@@ -557,16 +557,20 @@ def radio_tastemaker(desde_dias: int = 7, solo_desconocidos: bool = True) -> dic
     bandas emergentes: un grupo con 3.000 oyentes que suena tres veces en
     una semana en KEXP es una señal real.
 
-    Devuelve el ranking de lo más emitido con un ejemplo de canción, disco y
-    SELLO (útil: el sello suele llevar a la escena entera). Con
-    `solo_desconocidos` se quitan los que el usuario ya conoce.
+    El ranking no es solo "cuántas veces ha sonado": pesa la ROTACIÓN, que es
+    cuánto apuesta la emisora (Heavy > Medium > Light; Library es fondo de
+    catálogo y no cuenta como apuesta), y suma si el artista ha hecho una
+    SESIÓN EN DIRECTO en KEXP —que al usuario le importan especialmente—.
+    Cada artista viene con canción, disco y SELLO de ejemplo (el sello suele
+    llevar a la escena entera). Con `solo_desconocidos` se quitan los que ya
+    conoce.
 
     No gasta cuota de Spotify. Se cachea 3 h.
     """
     sp, lf, sf = _clients()
-    key = f"kexp:{desde_dias}"
+    key = f"kexp2:{desde_dias}"
     ranking = cache.recordar(
-        key, 3 * 3600, lambda: kexp.artistas_mas_pinchados(desde_dias))
+        key, 3 * 3600, lambda: kexp.artistas_mas_pinchados(desde_dias, 500))
     if not ranking:
         return {"error": "KEXP no ha devuelto datos ahora mismo",
                 "nota": "Puede ser un corte puntual de su API; reintenta luego."}
@@ -664,11 +668,13 @@ def fresh_releases(dias: int = 21, solo_desconocidos: bool = True) -> dict:
     """Lanzamientos recientes según ListenBrainz (MetaBrainz), sin Spotify.
 
     Es el listado general de novedades, no filtrado por su gusto: sirve para
-    ver qué ha salido en el mundo. Para novedades de SU órbita usa
-    new_releases, y para lo que la prensa destaca, music_press.
+    ver qué ha salido en el mundo. Se quitan los lanzamientos sin ninguna
+    escucha registrada, que son la mayoría (autoediciones y subidas
+    automáticas). Para novedades de SU órbita usa new_releases, y para lo
+    que la prensa destaca, music_press.
     """
     sp, lf, sf = _clients()
-    lanzamientos = cache.recordar(f"fresh:{dias}", 6 * 3600,
+    lanzamientos = cache.recordar(f"fresh2:{dias}", 6 * 3600,
                                   lambda: lb.novedades(dias))
     if not lanzamientos:
         return {"error": "ListenBrainz no devolvió novedades",
@@ -726,7 +732,7 @@ def explore_era(genre: str, year_from: int, year_to: int, limit: int = 60) -> di
 @mcp.tool()
 def discover_emerging(genres: list[str], max_listeners: int = 150000,
                       months: int = 18, limit: int = 40,
-                      deep_page: int = 2) -> dict:
+                      deep_page: int = 5) -> dict:
     """Bandas emergentes de unos géneros: pequeñas y activas ahora.
 
     Toma los artistas etiquetados en esos géneros en Last.fm saltando las
@@ -734,7 +740,9 @@ def discover_emerging(genres: list[str], max_listeners: int = 150000,
     que tienen `max_listeners` oyentes o menos y no conoce el usuario, y mira
     en Spotify si han publicado algo en los últimos `months` meses.
 
-    Sube `deep_page` (3, 4, 5…) para bajar más en el pozo. Baja
+    Por defecto empieza en la página 5 del ranking de cada etiqueta: en las
+    primeras siguen saliendo clásicos (en "post-punk", la 3 aún da Wire o
+    Gang of Four). Sube `deep_page` para bajar más en el pozo y baja
     `max_listeners` a 30000-50000 para rarezas de verdad.
 
     No usa los filtros de Spotify a propósito: `genre:` ya no funciona en

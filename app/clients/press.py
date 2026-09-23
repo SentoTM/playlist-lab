@@ -35,8 +35,7 @@ FEEDS = {
     "stereogum": ("Stereogum", "https://www.stereogum.com/feed/"),
     "soyoung": ("So Young", "https://soyoungmagazine.com/feed/"),
     "bestfit": ("The Line of Best Fit", "https://www.thelineofbestfit.com/feed"),
-    "dork": ("Dork", "https://readdork.com/feed/"),
-    "diy": ("DIY", "https://diymag.com/feed"),
+    # Dork y DIY no publican feed RSS (comprobado sep. 2026): fuera
     "brooklynvegan": ("BrooklynVegan", "https://www.brooklynvegan.com/feed/"),
 }
 

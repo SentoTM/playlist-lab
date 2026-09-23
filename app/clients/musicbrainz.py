@@ -180,10 +180,18 @@ class MusicbrainzClient:
         sello = self.buscar_sello(nombre)
         if not sello:
             return {"error": f"No encuentro el sello '{nombre}' en MusicBrainz"}
-        data = self._get("/release", label=sello["mbid"], limit=limit,
-                         inc="artist-credits")
+        # El listado no viene ordenado por fecha: sin paginar, lo reciente
+        # puede quedarse fuera. Se recorre entero (con tope) y se ordena aquí.
+        releases: list[dict] = []
+        for offset in range(0, 400, 100):
+            data = self._get("/release", label=sello["mbid"], limit=100,
+                             offset=offset, inc="artist-credits")
+            pagina = data.get("releases", [])
+            releases.extend(pagina)
+            if len(pagina) < 100:
+                break
         vistos, salida = set(), []
-        for r in data.get("releases", []):
+        for r in releases:
             artista = ", ".join(c["artist"]["name"]
                                 for c in (r.get("artist-credit") or [])
                                 if isinstance(c, dict) and c.get("artist"))
@@ -195,13 +203,16 @@ class MusicbrainzClient:
             salida.append({"artist": artista, "album": r.get("title"),
                            "fecha": fecha, "pais": r.get("country")})
         salida.sort(key=lambda r: r["fecha"] or "", reverse=True)
-        return {"sello": sello, "publicaciones": salida}
+        return {"sello": sello, "publicaciones": salida[:limit],
+                "total_en_catalogo": len(salida)}
 
     def sellos_de(self, artist: str, album: str = "") -> list[str]:
         """Con qué sellos ha publicado un artista: la puerta de entrada a una
         escena, porque los sellos agrupan por afinidad, no por algoritmo."""
         consulta = f'artist:"{artist}"' + (f' AND release:"{album}"' if album else "")
-        data = self._get("/release", query=consulta, limit=25, inc="labels")
+        # ojo: las búsquedas no admiten 'inc' (MusicBrainz responde 400); la
+        # información de sello ya viene incluida en el resultado
+        data = self._get("/release", query=consulta, limit=40)
         sellos: dict[str, int] = {}
         for r in data.get("releases", []):
             for info in r.get("label-info", []):

@@ -112,7 +112,7 @@ def era(mb: MusicbrainzClient, sp: SpotifyClient, lf: LastfmClient,
 
 def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
              known: dict, max_listeners: int = 150_000, months: int = 18,
-             limit: int = 40, deep_page: int = 2) -> dict:
+             limit: int = 40, deep_page: int = 5) -> dict:
     """Bandas emergentes: de un género, con poca audiencia y activas ahora.
 
     Por qué así: Spotify ha dejado de devolver `genres` y `popularity` en las
@@ -126,7 +126,7 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
 
     candidatos: list[str] = []
     for g in genres[:4]:
-        for page in range(deep_page, deep_page + 2):
+        for page in range(deep_page, deep_page + 3):
             for a in lf.tag_top_artists(g, 50, page):
                 if norm(a["name"]) not in known:
                     candidatos.append(a["name"])

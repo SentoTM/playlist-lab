@@ -33,7 +33,8 @@ class ListenbrainzClient:
             log.warning("ListenBrainz falló en %s: %s", url, e)
             return None
 
-    def novedades(self, dias: int = 21, limit: int = 80) -> list[dict]:
+    def novedades(self, dias: int = 21, limit: int = 80,
+                  min_escuchas: int = 5) -> list[dict]:
         """Lanzamientos recientes catalogados en MusicBrainz.
 
         Alternativa libre al listado de novedades de Spotify, que está
@@ -54,8 +55,14 @@ class ListenbrainzClient:
                 "oyentes_listenbrainz": r.get("listen_count"),
                 "artist_mbid": (r.get("artist_mbids") or [None])[0],
             })
-        out.sort(key=lambda r: (r.get("oyentes_listenbrainz") or 0), reverse=True)
-        return [r for r in out if r["artist"]][:limit]
+        # El listado es global y sin filtrar: la mayoría son lanzamientos que
+        # nadie ha escuchado todavía (autoediciones, subidas automáticas). Con
+        # al menos alguna escucha registrada ya hay alguien detrás.
+        con_publico = [r for r in out if r["artist"]
+                       and (r.get("oyentes_listenbrainz") or 0) >= min_escuchas]
+        con_publico.sort(key=lambda r: r.get("oyentes_listenbrainz") or 0,
+                         reverse=True)
+        return con_publico[:limit]
 
     def similares(self, artist_mbid: str, limit: int = 20) -> list[dict]:
         """Artistas similares por co-escucha real (no por etiquetas).
