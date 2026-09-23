@@ -20,8 +20,13 @@ INICIAL = {
         "Elefant Records", "Subterfuge Records", "Sonido Muchacho",
     ],
     "artistas": [],
-    "nota": ("Sellos y artistas que el radar vigila. Añade o quita con las "
-             "herramientas follow/unfollow o editando este fichero."),
+    # Etiquetas que el radar recorre además de los géneros que salen de tu
+    # historial (que vienen casi todos en inglés y dejaban corto el
+    # castellano). Nombres de etiqueta tal como se usan en Last.fm.
+    "etiquetas": ["spanish indie", "indie español", "rock en español",
+                  "spanish punk", "latin indie"],
+    "nota": ("Sellos, artistas y etiquetas que el radar vigila. Añade o "
+             "quita con follow/unfollow o editando este fichero."),
 }
 
 
@@ -34,6 +39,7 @@ def cargar() -> dict:
         return dict(INICIAL)
     datos.setdefault("sellos", [])
     datos.setdefault("artistas", [])
+    datos.setdefault("etiquetas", list(INICIAL["etiquetas"]))
     return datos
 
 
@@ -44,8 +50,16 @@ def _guardar(datos: dict) -> None:
     os.replace(tmp, ARCHIVO)
 
 
+def _clave(tipo: str) -> str:
+    if tipo.startswith("sello"):
+        return "sellos"
+    if tipo.startswith("etiqueta") or tipo.startswith("genero") or tipo.startswith("género"):
+        return "etiquetas"
+    return "artistas"
+
+
 def seguir(tipo: str, nombre: str) -> dict:
-    clave = "sellos" if tipo.startswith("sello") else "artistas"
+    clave = _clave(tipo)
     with _lock:
         datos = cargar()
         if nombre.lower() not in (n.lower() for n in datos[clave]):
@@ -55,7 +69,7 @@ def seguir(tipo: str, nombre: str) -> dict:
 
 
 def dejar(tipo: str, nombre: str) -> dict:
-    clave = "sellos" if tipo.startswith("sello") else "artistas"
+    clave = _clave(tipo)
     with _lock:
         datos = cargar()
         datos[clave] = [n for n in datos[clave] if n.lower() != nombre.lower()]

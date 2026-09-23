@@ -38,6 +38,36 @@ hizo autocrítica útil:
 
 Pendiente: que Vicente cuente qué le parecieron los discos al acabar la semana.
 
+## "Carne Fresca" (23 sep., última prueba del día)
+
+Lista de novedades emergentes pedida desde el chat. Esta vez sí usó fuentes
+externas (KEXP de tres semanas y prensa en castellano), avisó de lo de las
+carpetas antes de empezar y aprovechó las notas (Fat Dog "rozado", Sweeping
+Promises pendiente desde ChatGPT). El servidor aún corría código viejo, sin
+radar. Arreglado después:
+
+- **Coincidencia difusa**: buscando "Las Petunias" devolvía la discografía de
+  Mala Gestión, y "Melenas" la de Hinds; se cogía el primer resultado a
+  ciegas. `library.find_artist` exige que el nombre case y, si no, dice qué
+  devolvió Spotify en su lugar. Se usa en todos los sitios.
+- **Novedad ≠ emergente**: coló a Ceremony (en activo desde 2005) como
+  emergente; lo detectó el chat, no la herramienta. `vet_candidates` da ahora
+  la etapa (emergente / consolidado / veterano) desde MusicBrainz.
+- **Castellano corto**: el radar solo miraba géneros del historial, casi todos
+  en inglés. Ahora recorre también etiquetas seguidas, con cinco en castellano
+  por defecto (`datos/seguimiento.json`, o `follow("etiqueta", ...)`).
+- `new_releases` seguía tardando: ahora remite a `radar` y los trabajos en
+  segundo plano responden a los 25 s en vez de a los 40.
+
+## Para arrancar la próxima sesión
+
+1. Reiniciar Claude Desktop: nada de lo del 23 sep. está cargado todavía.
+2. `radar.bat` para la primera pasada del radar (y programarlo semanal).
+3. Apuntar como pendientes los discos de la primera semana y de Carne Fresca
+   (leyendo las listas con `playlist_contents`, que ya funciona), para que
+   `/semana` los tenga listos.
+4. Recoger su feedback de la semana y ver qué dimensiones funcionaron.
+
 ## Hacia dónde va (hoja de ruta acordada el 23 sep.)
 
 El norte: **un cerebro musical que trabaja solo entre conversaciones**. Vigila

@@ -41,7 +41,7 @@ def _estado_publico(key: str, job: dict, esperado: float) -> dict:
     }
 
 
-def run_or_wait(key: str, fn, wait_seconds: float = 40.0) -> dict:
+def run_or_wait(key: str, fn, wait_seconds: float = 25.0) -> dict:
     """Devuelve el resultado, o "en curso" si aún no está listo.
 
     `fn` puede aceptar un argumento: una función `paso(texto)` para ir

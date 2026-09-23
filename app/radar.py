@@ -157,10 +157,13 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
     except Exception as e:  # noqa: BLE001
         fallos.append(f"ListenBrainz: {e}")
 
-    # 4) El fondo de las etiquetas de su gusto (donde no llegan los grandes)
+    # 4) El fondo de las etiquetas de su gusto (donde no llegan los grandes),
+    # más las que sigue a propósito (castellano incluido)
     generos = _generos_del_usuario(sf)
-    paso(f"etiquetas de tu gusto: {', '.join(generos[:5])}")
-    for g in generos[:5]:
+    extra = [e for e in seg.get("etiquetas", []) if e.lower() not in generos]
+    a_recorrer = generos[:5] + extra
+    paso(f"etiquetas: {', '.join(a_recorrer)}")
+    for g in a_recorrer:
         try:
             for a in lf.tag_top_artists(g, 50, 5):
                 cand.add(a["name"], "etiqueta", PESO["etiqueta"],
@@ -195,7 +198,7 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
             c["senales"].append(
                 f"en la prensa: {menciones[0].get('source')} "
                 f"(«{(menciones[0].get('title') or '')[:60]}»)")
-        comunes = {t.lower() for t in c["etiquetas"]} & set(generos)
+        comunes = {t.lower() for t in c["etiquetas"]} & (set(generos) | {e.lower() for e in extra})
         if comunes:
             c["puntos"] += BONUS_AFINIDAD
             c["senales"].append(f"encaja con tus géneros ({', '.join(sorted(comunes))})")

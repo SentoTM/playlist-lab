@@ -108,11 +108,12 @@ def new_releases(sp: SpotifyClient, lf: LastfmClient | None, sf: StatsfmClient |
         equivocada.
         """
         try:
-            found = sp.search_artist(name, limit=1)
-            if not found:
+            from .library import find_artist
+            encontrado, _ = find_artist(sp, name)
+            if not encontrado:
                 fallos["no está en Spotify"] = fallos.get("no está en Spotify", 0) + 1
                 return []
-            albums = sp.artist_albums(found[0]["id"], limit=10)
+            albums = sp.artist_albums(encontrado["id"], limit=10)
             return [a for a in albums
                     if (a.get("release_date") or "") >= cutoff
                     and a.get("album_type") in ("album", "single")]

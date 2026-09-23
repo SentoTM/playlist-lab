@@ -9,6 +9,7 @@ comprobación eran varias llamadas por artista. Aquí es una por lista.
 
 Solo fuentes gratuitas: nada de cuota de Spotify.
 """
+import datetime as dt
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
@@ -24,6 +25,12 @@ log = logging.getLogger("playlist_lab.vet")
 # volver, diciendo que ya lo rozó.
 UMBRAL_ROZADO = 15      # escuchas (Last.fm o stats.fm)
 UMBRAL_MUCHO = 100
+
+# Trayectoria: "novedad" no es lo mismo que "emergente". Un disco nuevo de
+# un grupo con veinte años (Ceremony, en activo desde 2005) es una novedad,
+# no un descubrimiento; lo detectó el propio chat, no la herramienta.
+EMERGENTE_MAX_ANOS = 5
+VETERANO_MIN_ANOS = 12
 
 PEQUENO = 150_000
 GRANDE = 1_000_000
@@ -44,6 +51,18 @@ def nivel_de_conocimiento(evidencia: dict | None, lastfm_plays: int = 0) -> str:
     if escuchas > 0:
         return "rozado"
     return "nuevo"
+
+
+def etapa(activo_desde: str | None) -> str | None:
+    """emergente | consolidado | veterano, según los años en activo."""
+    if not activo_desde or not activo_desde[:4].isdigit():
+        return None
+    anos = dt.date.today().year - int(activo_desde[:4])
+    if anos <= EMERGENTE_MAX_ANOS:
+        return "emergente"
+    if anos >= VETERANO_MIN_ANOS:
+        return "veterano"
+    return "consolidado"
 
 
 def _uno(nombre: str, lf: LastfmClient, kexp: KexpClient,
@@ -92,6 +111,11 @@ def _uno(nombre: str, lf: LastfmClient, kexp: KexpClient,
     if prensa:
         senales.append(f"{len(prensa)} menciones en la prensa archivada")
 
+    corregido = info.get("artist")
+    if corregido and norm(corregido) != norm(nombre):
+        senales.append(f"OJO: Last.fm lo interpreta como '{corregido}'; comprueba "
+                       "que es el mismo artista")
+
     opinion = opiniones.get(nombre) or opiniones.get(norm(nombre))
     return {
         "artist": info.get("artist") or nombre,
@@ -110,11 +134,26 @@ def _uno(nombre: str, lf: LastfmClient, kexp: KexpClient,
 
 
 def validar(nombres: list[str], lf: LastfmClient, kexp: KexpClient,
-            conocidos: dict, opiniones: dict) -> dict:
+            conocidos: dict, opiniones: dict, mb=None) -> dict:
     nombres = [n for n in dict.fromkeys(nombres) if n][:20]
     with ThreadPoolExecutor(max_workers=6) as pool:
         filas = list(pool.map(
             lambda n: _uno(n, lf, kexp, conocidos, opiniones), nombres))
+
+    # Trayectoria en MusicBrainz: va en serie (una petición por segundo)
+    if mb is not None:
+        for f, nombre in zip(filas, nombres):
+            try:
+                ficha = mb.find_artist(nombre) or {}
+            except Exception:  # noqa: BLE001
+                ficha = {}
+            f["activo_desde"] = ficha.get("activo_desde")
+            f["etapa"] = etapa(ficha.get("activo_desde"))
+            if f["etapa"] == "veterano":
+                f["senales"].append(f"VETERANO: en activo desde {f['activo_desde'][:4]}; "
+                                    "un disco suyo es novedad, no descubrimiento")
+            elif f["etapa"] == "emergente":
+                f["senales"].append(f"emergente de verdad (desde {f['activo_desde'][:4]})")
 
     descartar = [f["artist"] for f in filas
                  if f["nivel"] in ("conocido", "muy escuchado")
@@ -129,6 +168,8 @@ def validar(nombres: list[str], lf: LastfmClient, kexp: KexpClient,
                                            if f["nivel"] == "rozado"],
             "con_aval_externo": con_aval,
             "con_sesion_kexp": [f["artist"] for f in filas if f["kexp"]["sesion_en_directo"]],
+            "veteranos_no_emergentes": [f["artist"] for f in filas
+                                        if f.get("etapa") == "veterano"],
         },
         "como_leerlo": (
             "nivel: nuevo < rozado < conocido < muy escuchado. 'Rozado' NO "

@@ -406,7 +406,9 @@ def album_info(artist: str, album: str) -> dict:
 
 @mcp.tool()
 def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
-    """Discos publicados hace poco DENTRO de su órbita musical.
+    """Discos publicados hace poco DENTRO de su órbita musical. Para
+    emergentes y novedades en general, usa ANTES `radar`, que es instantáneo
+    y ya viene validado; esto es lento y cubre solo su órbita cercana.
 
     Cruza los últimos lanzamientos de sus artistas, de los vecinos de estos
     (Last.fm) y de las novedades de Spotify, y los separa en `de_los_tuyos`
@@ -585,7 +587,8 @@ def radar_update() -> dict:
 def follow(tipo: str, nombre: str) -> dict:
     """Vigilar un sello o un artista: el radar avisará de lo que saquen.
 
-    tipo: "sello" o "artista". Seguir sellos es la forma más barata de
+    tipo: "sello", "artista" o "etiqueta" (un género como se usa en Last.fm,
+    p. ej. "spanish indie"). Seguir sellos es la forma más barata de
     enterarse de lo nuevo con criterio (las escenas se organizan por sello).
     """
     return {"siguiendo": seguimiento.seguir(tipo, nombre)}
@@ -696,11 +699,13 @@ def artist_releases(artist: str, limit: int = 20) -> dict:
     """
     sp, _, _ = _clients()
     _require_auth(sp)
-    found = sp.search_artist(artist, limit=1)
-    if not found:
-        return {"error": f"No encuentro a {artist} en Spotify"}
-    albums = sp.artist_albums(found[0]["id"], limit=limit, artist_name=artist)
-    return {"artist": found[0].get("name"), "n": len(albums), "albumes": [
+    encontrado, aviso = library.find_artist(sp, artist)
+    if not encontrado:
+        return {"error": aviso,
+                "nota": ("No uses otra discografía en su lugar: di que no está "
+                         "en Spotify o busca el nombre exacto.")}
+    albums = sp.artist_albums(encontrado["id"], limit=limit, artist_name=artist)
+    return {"artist": encontrado.get("name"), "n": len(albums), "albumes": [
         {"album": a.get("name"), "fecha": a.get("release_date"),
          "tipo": a.get("album_type"), "canciones": a.get("total_tracks"),
          "id": a.get("id")} for a in albums]}
@@ -763,15 +768,17 @@ def vet_candidates(artists: list[str]) -> dict:
     Para cada artista: nivel de conocimiento (nuevo / rozado / conocido /
     muy escuchado), su opinión si la hay, audiencia y público devoto, si
     KEXP lo pincha y si tiene SESIÓN EN DIRECTO, y menciones en la prensa
-    archivada. El resumen separa lo descartable, lo rozado (que SÍ vale),
-    lo que tiene aval externo y lo que tiene sesión.
+    archivada, y ETAPA (emergente / consolidado / veterano, por años en
+    activo según MusicBrainz): si te piden emergentes, un veterano con disco
+    nuevo no cuenta. El resumen separa lo descartable, lo rozado (que SÍ
+    vale), lo que tiene aval externo, lo que tiene sesión y los veteranos.
 
     Hasta 20 artistas por llamada. Sin cuota de Spotify.
     """
     sp, lf, sf = _clients()
     _require_lastfm(lf)
     return vet.validar(artists, lf, kexp, _known(sp, lf, sf),
-                       notes.para(list(artists)))
+                       notes.para(list(artists)), mb=mb)
 
 
 @mcp.tool()

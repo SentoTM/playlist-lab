@@ -55,6 +55,33 @@ def find_track(sp: SpotifyClient, artist: str, title: str) -> dict | None:
     return good[0]
 
 
+def find_artist(sp: SpotifyClient, nombre: str) -> tuple[dict | None, str | None]:
+    """El artista pedido, o None si Spotify no lo tiene.
+
+    Spotify, cuando no encuentra a alguien, devuelve lo más parecido que
+    tenga: buscando "Las Petunias" devolvía Mala Gestión, y buscando
+    "Melenas", Hinds. Coger el primer resultado a ciegas colaba la
+    discografía de otro grupo. Ahora se exige que el nombre case.
+
+    Devuelve (artista, aviso). Si no casa, artista es None y el aviso dice
+    qué devolvió Spotify en su lugar.
+    """
+    resultados = sp.search_artist(nombre, limit=5)
+    buscado = _plano(nombre)
+    for a in resultados:
+        if _plano(a.get("name", "")) == buscado:
+            return a, None
+    for a in resultados:  # "The X" / "X", "X & The Y"...
+        n = _plano(a.get("name", ""))
+        if buscado and n and (n == f"the {buscado}" or buscado == f"the {n}"):
+            return a, None
+    if resultados:
+        return None, (f"'{nombre}' no está en Spotify (o no con ese nombre): la "
+                      f"búsqueda devolvió '{resultados[0].get('name')}', que es "
+                      "otro artista.")
+    return None, f"'{nombre}' no está en Spotify."
+
+
 def _candidatos_album(sp: SpotifyClient, artist: str, album: str) -> list[dict]:
     """Búsquedas de más estricta a más laxa, hasta que algo case con el artista.
 

@@ -150,10 +150,11 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
 
     def ultimo_disco(name: str) -> dict | None:
         try:
-            found = sp.search_artist(name, limit=1)
-            if not found:
+            from .library import find_artist
+            encontrado, _ = find_artist(sp, name)
+            if not encontrado:
                 return None
-            albums = [a for a in sp.artist_albums(found[0]["id"], limit=10)
+            albums = [a for a in sp.artist_albums(encontrado["id"], limit=10)
                       if a.get("album_type") in ("album", "single")]
             if not albums:
                 return None
