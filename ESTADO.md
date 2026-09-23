@@ -38,6 +38,25 @@ hizo autocrítica útil:
 
 Pendiente: que Vicente cuente qué le parecieron los discos al acabar la semana.
 
+## Hacia dónde va (hoja de ruta acordada el 23 sep.)
+
+El norte: **un cerebro musical que trabaja solo entre conversaciones**. Vigila
+lo que sale, recuerda lo que opinas y te prepara la semana; tú hablas con él
+cuando te apetece, desde donde estés. Por orden:
+
+1. **Radar + feedback rápido** — hecho (23 sep.). Falta: primera pasada real
+   del radar y apuntar como pendientes los 30 discos de la primera semana.
+2. **Semana automática** — tarea programada el domingo que monta las cinco
+   listas con el radar y las notas, y manda un resumen.
+3. **Despliegue** — servidor en internet, solo para él, como conector de
+   Claude: usable desde el móvil y sin depender del PC.
+4. **Directo** — registro de conciertos y avisos de gira de lo que le funciona.
+
+Ideas para más adelante: diario de listas y resultados para detectar qué
+dimensiones funcionan con él; que la guía personal se actualice a partir de
+esos patrones (con su visto bueno); señales españolas (programas de Radio 3,
+carteles de festivales).
+
 ## La trampa que nos costó dos días
 
 `new_releases` devolvía listas vacías y fuimos encontrando cuatro causas

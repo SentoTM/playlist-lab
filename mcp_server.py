@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from app import (cache, discovery, dossier, explore, jobs, library,  # noqa: E402
-                 notes, taste, vet)
+                 notes, radar as radar_mod, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.kexp import KexpClient              # noqa: E402
@@ -52,6 +52,11 @@ def _clients() -> tuple[SpotifyClient, LastfmClient | None, StatsfmClient | None
     sf = (StatsfmClient(os.getenv("STATSFM_USERNAME", ""))
           if os.getenv("STATSFM_USERNAME") else None)
     return sp, lf, sf
+
+
+def dt_hoy() -> str:
+    import datetime as _dt
+    return _dt.date.today().isoformat()
 
 
 def _require_lastfm(lf: LastfmClient | None) -> LastfmClient:
@@ -484,9 +489,11 @@ y en esos no son opcionales:
 
 2. Lo NUEVO y lo EMERGENTE. Tu conocimiento tiene fecha de corte: no sabes
    qué suena ahora ni si un grupo sigue activo. Por eso:
-   - En cada tanda, al menos UNA novedad debe salir de fuera de tu cabeza:
-     radio_tastemaker (qué apuesta KEXP esta semana), fresh_releases,
-     discover_emerging o music_press. Dile de dónde ha salido.
+   - EMPIEZA POR radar: es una lista viva de emergentes que él no conoce,
+     ya validados por varias fuentes. Los "triangulados" (dos o más fuentes
+     independientes) son la mejor apuesta. En cada tanda, al menos UNA
+     novedad debe salir del radar (o de radio_tastemaker, fresh_releases o
+     music_press), no de tu memoria. Dile de dónde ha salido y por qué.
    - Todo candidato de los últimos ~3 años pasa por vet_candidates:
      prioriza los que tienen aval (KEXP o prensa). Si uno no tiene ninguno,
      puede entrar, pero que sea una apuesta consciente.
@@ -501,6 +508,7 @@ Economía: nada de lo anterior gasta cuota de Spotify salvo resolve y
 create_playlist. listening_history y taste_profile salen de stats.fm.
 Spotify no permite crear carpetas por la API: dilo antes de empezar.
 Al crear, los discos quedan apuntados como "pendiente" en sus notas.
+Cuando opine de varios a la vez, guárdalo con rate en una sola llamada.
 """
 
 @mcp.tool()
@@ -527,7 +535,101 @@ def curation_guide() -> dict:
     return {"guia_personal": guia, "metodo": METODO}
 
 
+# ---------- radar de novedades y emergentes ----------
+
+@mcp.tool()
+def radar(solo_triangulados: bool = False, limite: int = 25) -> dict:
+    """LA FUENTE DE NOVEDADES Y EMERGENTES. Úsala antes que tu memoria.
+
+    Una lista viva de candidatos que el usuario no conoce, recogida de
+    fuentes independientes (qué apuesta KEXP, qué publican los sellos que
+    sigue, ListenBrainz, el fondo de las etiquetas de su gusto) y validada
+    con su audiencia y la prensa. Cada uno trae sus `senales` y `fuentes`:
+    `triangulado` significa que aparece en dos o más fuentes independientes,
+    que es la mejor apuesta. La recurrencia entre pasadas también suma.
+
+    Incluye `de_los_que_sigues`: novedades de los artistas que sigue.
+    Es una lectura instantánea; si `actualizado` es viejo (más de una
+    semana), lanza radar_update.
+    """
+    sp, lf, sf = _clients()
+    return radar_mod.leer(_known(sp, lf, sf), solo_triangulados, limite)
+
+
+@mcp.tool()
+def radar_update() -> dict:
+    """Pasa el radar entero: tarda uno o dos minutos y va en segundo plano.
+
+    Si la respuesta dice `vuelve_a_llamar`, llama otra vez: el trabajo
+    continúa. Lo normal es que corra solo cada semana; lánzalo a mano si
+    `radar` dice que está desactualizado. Sin cuota de Spotify.
+    """
+    sp, lf, sf = _clients()
+    _require_lastfm(lf)
+
+    def calcular(paso):
+        paso("leyendo lo que ya conoces")
+        conocidos = _known(sp, lf, sf)
+        datos = radar_mod.actualizar(lf, mb, lb, kexp, sf, conocidos, paso)
+        return {"actualizado": datos["actualizado"],
+                "candidatos": len(datos["candidatos"]),
+                "triangulados": sum(1 for c in datos["candidatos"] if c.get("triangulado")),
+                "mejores": [{"artist": c["artist"], "puntos": c["puntos"],
+                             "fuentes": c["fuentes"]} for c in datos["candidatos"][:10]],
+                "fallos": datos.get("fallos_ultima_pasada") or None}
+
+    return jobs.run_or_wait(f"radar_update:{dt_hoy()}", calcular)
+
+
+@mcp.tool()
+def follow(tipo: str, nombre: str) -> dict:
+    """Vigilar un sello o un artista: el radar avisará de lo que saquen.
+
+    tipo: "sello" o "artista". Seguir sellos es la forma más barata de
+    enterarse de lo nuevo con criterio (las escenas se organizan por sello).
+    """
+    return {"siguiendo": seguimiento.seguir(tipo, nombre)}
+
+
+@mcp.tool()
+def unfollow(tipo: str, nombre: str) -> dict:
+    """Dejar de vigilar un sello o un artista."""
+    return {"siguiendo": seguimiento.dejar(tipo, nombre)}
+
+
 # ---------- tus opiniones ----------
+
+@mcp.tool()
+def rate(opiniones: list[dict]) -> dict:
+    """Guarda DE UNA VEZ lo que opina de varios discos o artistas.
+
+    Para cuando dice cosas como "Mingus me ha flipado, Os Mutantes bien,
+    Sparks sin más y Prodigy no es lo mío": una llamada con todo, en vez de
+    una por disco. Cada opinión es un objeto con:
+      - artist (obligatorio), album (si es un disco concreto)
+      - veredicto: "me encanta", "me gusta", "sin pena ni gloria",
+        "no es para mí pero lo entiendo", "no es lo mío", "nunca más"
+      - nota: sus palabras y el porqué, que es lo que sirve después.
+    Si un veredicto no encaja en la escala, elige el más cercano y pon sus
+    palabras en la nota.
+    """
+    guardadas, errores = [], []
+    for o in opiniones:
+        artista = (o.get("artist") or o.get("artista") or "").strip()
+        if not artista:
+            errores.append({"opinion": o, "error": "falta el artista"})
+            continue
+        album = (o.get("album") or "").strip()
+        try:
+            e = notes.anotar("album" if album else "artista", artista,
+                             o.get("veredicto", ""), o.get("nota", ""), album)
+            guardadas.append(e)
+        except ValueError as err:
+            errores.append({"opinion": o, "error": str(err)})
+    cache.olvidar("known")
+    return {"guardadas": len(guardadas), "detalle": guardadas,
+            "errores": errores or None}
+
 
 @mcp.tool()
 def remember(tipo: str, sujeto: str, veredicto: str = "", nota: str = "",

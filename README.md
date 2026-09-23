@@ -89,8 +89,15 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `music_press` | reseñas y noticias recientes (Pitchfork, Quietus, Bandcamp Daily, Mondo Sonoro, Jenesaispop, Stereogum, BrooklynVegan) |
 | `verify` | año real, sello, actividad y discografía según MusicBrainz |
 
+| Radar | |
+|---|---|
+| `radar` | la lista viva de emergentes que no conoces, validada por varias fuentes; **la fuente de novedades** |
+| `radar_update` | pasa el radar (1-2 min, en segundo plano) |
+| `follow` / `unfollow` | vigilar sellos y artistas: el radar avisa de lo que saquen |
+
 | Conocer y evaluar | |
 |---|---|
+| `vet_candidates` | valida una lista entera de candidatos de una vez: nivel de conocimiento, opinión, audiencia, KEXP y prensa |
 | `dossier_artist` | todas las señales de un artista en una llamada: audiencia, ficha, sellos, KEXP, prensa y tu opinión |
 | `radio_tastemaker` | qué pincha KEXP esta semana: curación humana, la mejor señal para emergentes |
 | `played_on_radio` | si KEXP ha emitido a alguien, como aval de un desconocido |
@@ -114,6 +121,7 @@ ChatGPT solo acepta conectores MCP remotos. `mcp_http.bat` (o `python mcp_server
 | `remember` | guarda lo que opinas de un artista, un disco o en general |
 | `my_notes` | todo lo juzgado hasta ahora, agrupado por veredicto |
 | `forget_note` | borra una nota cuando cambias de opinión |
+| `rate` | guarda de una vez lo que opinas de varios discos |
 
 | Creación | |
 |---|---|
@@ -145,6 +153,34 @@ descubrimiento. `check_known` devuelve tu opinión junto a la evidencia de
 escucha, así que al proponer se ve de un vistazo qué pasó con eso.
 
 `scripts/sembrar_notas.py` hace la carga inicial a partir de lo ya escuchado.
+
+### El radar
+
+La IA solo buscaba novedades si se le ocurría en mitad de una conversación, y
+entonces tiraba de su memoria, que tiene fecha de corte. El radar invierte el
+flujo: se pasa solo (`radar.bat`, o `radar_update` desde el chat), recoge
+candidatos de fuentes independientes —qué apuesta KEXP y quién tiene sesión en
+directo, qué publican los sellos que sigues (`datos/seguimiento.json`), qué
+sale en ListenBrainz con algo de público, el fondo de las etiquetas de tu
+gusto—, quita lo que ya conoces y los puntúa.
+
+Dos ideas lo sostienen. **Triangulación**: un grupo en dos o más orígenes
+independientes (la rotación y la sesión de KEXP cuentan como uno) es mucho
+mejor apuesta que cualquier cosa de una sola fuente, así que suma fuerte, y
+una fuente débil suelta no basta para entrar. **Recurrencia**: el radar se
+acumula en `datos/radar.json` y quien sigue apareciendo pasada tras pasada
+suma más. Al pedir un menú, la novedad sale de aquí, ya validada.
+
+Para que se pase solo cada semana, programa `radar.bat` en el Programador de
+tareas de Windows (por ejemplo, domingos por la noche).
+
+### Feedback en treinta segundos
+
+Si opinar cuesta, no se opina, y sin opiniones la herramienta no aprende.
+Dos caminos: en el chat, decir de una vez qué te pareció la semana (la IA lo
+guarda todo con `rate` en una llamada), o abrir http://127.0.0.1:8888/semana
+y dar un clic por disco. Los discos aparecen agrupados por la lista en la que
+entraron, porque `create_playlist` los apunta como pendientes al crearla.
 
 ### Las tres señales que no da ningún algoritmo
 

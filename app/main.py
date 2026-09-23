@@ -11,7 +11,9 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
-from . import taste
+from pydantic import BaseModel
+
+from . import notes, taste
 from .clients.lastfm import LastfmClient
 from .clients.spotify import SpotifyAuthError, SpotifyClient
 from .clients.statsfm import StatsfmClient
@@ -110,3 +112,43 @@ def profile():
     if not sf:
         raise HTTPException(400, "stats.fm no está configurado (STATSFM_USERNAME)")
     return taste.taste_profile(sf)
+
+
+# ---------- feedback rápido ----------
+
+class Opinion(BaseModel):
+    artista: str
+    album: str = ""
+    veredicto: str
+    nota: str = ""
+
+
+@app.get("/semana")
+def semana():
+    return FileResponse(STATIC / "semana.html")
+
+
+@app.get("/api/pendientes")
+def pendientes():
+    """Discos por escuchar o por valorar, agrupados por la lista en la que
+    entraron. La nota "En la lista «X»" la pone create_playlist."""
+    grupos: dict[str, list] = {}
+    for a in notes.cargar()["albumes"].values():
+        if a.get("veredicto") != "pendiente":
+            continue
+        nota = a.get("nota") or ""
+        lista = nota.split("«", 1)[1].split("»", 1)[0] if "«" in nota else "Otros pendientes"
+        grupos.setdefault(lista, []).append({"artista": a["artista"], "album": a["album"],
+                                             "desde": a.get("desde")})
+    return {"veredictos": [v for v in notes.VEREDICTOS if v not in ("pendiente", "escuchado")],
+            "listas": [{"lista": k, "albumes": v} for k, v in grupos.items()]}
+
+
+@app.post("/api/opinion")
+def opinar(o: Opinion):
+    try:
+        entrada = notes.anotar("album" if o.album else "artista", o.artista,
+                               o.veredicto, o.nota, o.album)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "guardado": entrada}
