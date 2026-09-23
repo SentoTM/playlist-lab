@@ -2,7 +2,7 @@
 
 Notas para retomar sin releer todo el historial. Actualizar al cerrar cada sesión.
 
-_Última actualización: 22 de septiembre de 2026._
+_Última actualización: 23 de septiembre de 2026._
 
 ## Dónde estamos
 
@@ -14,6 +14,29 @@ Probado contra las APIs reales y funcionando: `status`, `taste_profile`,
 `my_library`, `my_playlists`, `check_known`, `explore_genre`, `explore_era`,
 `find_underrated`, `artist_context`, `verify`, `music_press` (los 8 feeds
 responden), `search`, `album_info`.
+
+## La primera semana real (23 sep.)
+
+Desde un chat de Claude Desktop se creó "jueves 25?" y una semana entera de
+lunes a viernes (25 discos con un hilo narrativo). Funcionó, y el propio chat
+hizo autocrítica útil:
+
+- **No usó ninguna fuente externa** (KEXP, ListenBrainz, prensa): los 25 discos
+  salieron de su conocimiento. Para clásicos está bien; para emergentes no,
+  porque no sabe qué suena ahora. Causa: comprobar cada artista costaba varias
+  llamadas y nada le obligaba. Arreglo: `vet_candidates` valida la lista entera
+  en una llamada, y `curation_guide` devuelve un MÉTODO que dice cuándo las
+  fuentes son obligatorias (novedades y emergentes) y cuándo no (clásicos).
+- `resolve` cogía deluxes y antologías (Cut de 130 min, Super Ape de 133).
+  Ahora prefiere la edición original y avisa por encima de 70 min.
+- Una búsqueda con apóstrofe tipográfico no encontraba a Sinéad O'Brien.
+- `check_known` marcaba conocido con cualquier escucha: ahora hay niveles
+  (nuevo / rozado / conocido / muy escuchado) y lo rozado sí se propone.
+- `create_playlist` ponía las canciones antes que los discos: ahora `items`
+  respeta el orden, y los discos quedan como "pendiente" en las notas.
+- `listening_history` con límite 100 se colgó 4 minutos.
+
+Pendiente: que Vicente cuente qué le parecieron los discos al acabar la semana.
 
 ## La trampa que nos costó dos días
 

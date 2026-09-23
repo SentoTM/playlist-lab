@@ -4,16 +4,42 @@ La IA propone en texto ("Artista – Canción", "Artista – Álbum"); aquí se
 convierte eso en URIs verificadas y se crea la playlist. Siempre se informa
 de lo que no se ha podido resolver para que se corrija en conversación.
 """
+import re
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 
 from .clients.spotify import SpotifyClient
 from .text import norm, parse_item
 
+# Un disco "normal" rara vez pasa de esto; por encima suele ser una edición
+# ampliada o un recopilatorio colado (Cut de The Slits en su deluxe de 130
+# minutos, Super Ape convertido en una antología de 133).
+MINUTOS_SOSPECHOSOS = 70
+
+# Palabras que delatan una edición que NO es la original
+_EDICION = re.compile(
+    r"\b(deluxe|expanded|anniversary|remaster(ed)?|edition|edici[oó]n|collector|"
+    r"bonus|reissue|anthology|antolog[ií]a|best of|greatest hits|complete|"
+    r"box set|singles|recopilatorio|demos|sessions)\b", re.I)
+
+
+def _plano(s: str) -> str:
+    """Para comparar y para buscar: sin tildes, sin apóstrofes ni signos.
+
+    Spotify escribe a veces el apóstrofe tipográfico (’) y otras el recto
+    ('), y "Sinéad O'Brien" no casaba con "Sinéad O’Brien".
+    """
+    s = unicodedata.normalize("NFKD", (s or "").lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = re.sub(r"[’'`´]", "", s)
+    return re.sub(r"[^a-z0-9]+", " ", s).strip()
+
 
 def _artist_matches(candidate: dict, artist: str) -> bool:
-    names = [a.get("name", "") for a in candidate.get("artists", [])]
-    return any(norm(n) == norm(artist) for n in names) or any(
-        norm(artist) in norm(n) or norm(n) in norm(artist) for n in names)
+    names = [_plano(a.get("name", "")) for a in candidate.get("artists", [])]
+    buscado = _plano(artist)
+    return any(n == buscado for n in names) or any(
+        buscado and n and (buscado in n or n in buscado) for n in names)
 
 
 def find_track(sp: SpotifyClient, artist: str, title: str) -> dict | None:
@@ -29,16 +55,49 @@ def find_track(sp: SpotifyClient, artist: str, title: str) -> dict | None:
     return good[0]
 
 
+def _candidatos_album(sp: SpotifyClient, artist: str, album: str) -> list[dict]:
+    """Búsquedas de más estricta a más laxa, hasta que algo case con el artista.
+
+    La última prueba sin comillas y sin signos rescata títulos con apóstrofes
+    o tildes, que con la sintaxis de campos de Spotify a veces no aparecen.
+    """
+    consultas = [f'album:"{album}" artist:"{artist}"',
+                 f"{album} {artist}",
+                 f"{_plano(album)} {_plano(artist)}",
+                 _plano(album)]
+    for q in consultas:
+        buenos = [a for a in sp.search_album(q, limit=10) if _artist_matches(a, artist)]
+        if buenos:
+            return buenos
+    return []
+
+
 def find_album(sp: SpotifyClient, artist: str, album: str) -> dict | None:
-    results = sp.search_album(f'album:"{album}" artist:"{artist}"', limit=5) \
-        or sp.search_album(f"{album} {artist}", limit=5)
-    good = [a for a in results if _artist_matches(a, artist)]
+    """El álbum pedido, prefiriendo la EDICIÓN ORIGINAL.
+
+    Antes cogía la primera coincidencia y se colaban deluxes y antologías.
+    Ahora ordena por: título que casa, que sea álbum (no recopilatorio), que
+    no tenga pinta de reedición (salvo que se pida), menos pistas y, a
+    igualdad, la fecha más antigua, que es la de la edición original.
+    """
+    good = _candidatos_album(sp, artist, album)
     if not good:
         return None
-    # preferir álbum sobre single/compilación, y título más parecido
-    good.sort(key=lambda a: (a.get("album_type") != "album",
-                             norm(a.get("name", "")) != norm(album)))
-    return good[0]
+    pide_edicion = bool(_EDICION.search(album))
+
+    def clave(a: dict):
+        nombre = a.get("name", "")
+        casa = _plano(norm(nombre)) == _plano(norm(album))
+        es_edicion = bool(_EDICION.search(nombre))
+        # si pide una edición concreta, que la tenga; si no, que no la tenga
+        desajuste = es_edicion != pide_edicion
+        return (not casa, desajuste, a.get("album_type") != "album",
+                a.get("total_tracks") or 99, a.get("release_date") or "9999")
+
+    good.sort(key=clave)
+    elegido = dict(good[0])
+    elegido["_alternativas"] = len(good) - 1
+    return elegido
 
 
 def album_details(sp: SpotifyClient, album_id: str) -> dict:
@@ -109,14 +168,69 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
                                "reason": err or "no encontrada en Spotify"})
     for item, d, err in album_results:
         if d:
-            resolved.append({"input": item, "type": "album", "album": d["album"],
-                             "artist": d["artist"], "year": d["year"],
-                             "n_tracks": d["n_tracks"], "minutes": d["minutes"]})
+            fila = {"input": item, "type": "album", "album": d["album"],
+                    "artist": d["artist"], "year": d["year"],
+                    "n_tracks": d["n_tracks"], "minutes": d["minutes"]}
+            if d["minutes"] > MINUTOS_SOSPECHOSOS:
+                fila["aviso"] = (f"Dura {d['minutes']} min: puede ser una edición "
+                                 "ampliada o un recopilatorio. Comprueba si es "
+                                 "el disco original antes de crear la lista.")
+            resolved.append(fila)
             uris.extend(d["uris"])
             minutes += d["minutes"]
         else:
             unresolved.append({"input": item, "type": "album",
                                "reason": err or "no encontrado en Spotify"})
+    return {"resolved": resolved, "unresolved": unresolved, "uris": uris,
+            "total_minutes": round(minutes)}
+
+
+def resolve_ordered(sp: SpotifyClient, items: list[str]) -> dict:
+    """Como resolve_items, pero respetando el orden en que se piden.
+
+    Cada elemento es "Artista – Canción" o "album: Artista – Álbum". Sirve
+    para mezclar discos completos con canciones sueltas sin que las canciones
+    se vayan al principio (p. ej. meter tres temas de un disco que solo
+    existe en una edición de dos horas).
+    """
+    def uno(item: str):
+        texto = item.strip()
+        es_album = texto.lower().startswith("album:") or texto.lower().startswith("álbum:")
+        if es_album:
+            texto = texto.split(":", 1)[1].strip()
+        try:
+            artista, titulo = parse_item(texto)
+        except ValueError as e:
+            return item, "album" if es_album else "track", None, str(e)
+        if es_album:
+            a = find_album(sp, artista, titulo)
+            return item, "album", (album_details(sp, a["id"]) if a else None), None
+        return item, "track", find_track(sp, artista, titulo), None
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        filas = list(pool.map(uno, items))
+
+    resolved, unresolved, uris, minutes = [], [], [], 0.0
+    for item, tipo, dato, err in filas:
+        if not dato:
+            unresolved.append({"input": item, "type": tipo,
+                               "reason": err or "no encontrado en Spotify"})
+            continue
+        if tipo == "album":
+            fila = {"input": item, "type": "album", "album": dato["album"],
+                    "artist": dato["artist"], "year": dato["year"],
+                    "n_tracks": dato["n_tracks"], "minutes": dato["minutes"]}
+            if dato["minutes"] > MINUTOS_SOSPECHOSOS:
+                fila["aviso"] = (f"Dura {dato['minutes']} min: puede ser una "
+                                 "edición ampliada o un recopilatorio.")
+            resolved.append(fila)
+            uris.extend(dato["uris"])
+            minutes += dato["minutes"]
+        else:
+            fila = _track_summary(dato)
+            resolved.append({"input": item, "type": "track", **fila})
+            uris.append(dato["uri"])
+            minutes += fila["minutes"]
     return {"resolved": resolved, "unresolved": unresolved, "uris": uris,
             "total_minutes": round(minutes)}
 

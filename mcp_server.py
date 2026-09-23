@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from app import (cache, discovery, dossier, explore, jobs, library,  # noqa: E402
-                 notes, taste)
+                 notes, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.kexp import KexpClient              # noqa: E402
@@ -259,7 +259,8 @@ def now_playing() -> dict:
 @mcp.tool()
 def listening_history(source: str = "statsfm", kind: str = "artists",
                       range: str = "lifetime", limit: int = 50, offset: int = 0) -> list:
-    """Historial en bruto cuando el perfil no basta.
+    """Historial en bruto cuando el perfil no basta. Máximo 200 por fuente;
+    pagina con `offset` de 50 en 50. Se cachea 6 h.
 
     source: "statsfm" (historial completo; range: weeks|months|lifetime),
     "lastfm" (range: 7day|1month|3month|6month|12month|overall) o
@@ -270,9 +271,17 @@ def listening_history(source: str = "statsfm", kind: str = "artists",
     if source == "statsfm":
         if not sf:
             raise RuntimeError("stats.fm no configurado")
-        items = (sf.top_artists(range, limit + offset) if kind == "artists"
-                 else sf.top_tracks(range, limit + offset))
-        return items[offset:]
+        # Pedir 100+ de golpe llegó a colgarse 4 minutos: se trae como mucho
+        # 200, se cachea en disco y se sirve por tramos desde ahí.
+        tope = min(limit + offset, 200)
+        clave = f"statsfm:{kind}:{range}:{tope}"
+        traer = ((lambda: sf.top_artists(range, tope)) if kind == "artists"
+                 else (lambda: sf.top_tracks(range, tope)))
+        res = jobs.run_or_wait(clave, lambda: {"items": cache.recordar(clave, 6 * 3600, traer)},
+                               wait_seconds=35)
+        if "items" not in res:
+            return [res]  # "en curso": que vuelva a llamar
+        return res["items"][offset:offset + limit]
     if source == "lastfm":
         if not (lf and lf.username):
             raise RuntimeError("Last.fm no configurado")
@@ -291,7 +300,12 @@ def listening_history(source: str = "statsfm", kind: str = "artists",
 
 @mcp.tool()
 def check_known(artists: list[str], deep: bool = True) -> dict:
-    """¿Conoce ya el usuario a estos artistas? Úsalo para filtrar propuestas.
+    """¿Conoce ya el usuario a estos artistas? (Mejor: vet_candidates, que
+    además trae audiencia, radio y prensa en la misma llamada.)
+
+    Devuelve `nivel`: nuevo < rozado (hasta 15 escuchas) < conocido < muy
+    escuchado. `known` solo es True desde "conocido": lo rozado SÍ se puede
+    proponer, porque él valora las segundas escuchas.
 
     Devuelve por artista: known (bool) y evidencia (puesto en sus tops de
     Spotify, canciones o álbumes guardados, si lo sigue, scrobbles en
@@ -307,12 +321,17 @@ def check_known(artists: list[str], deep: bool = True) -> dict:
     for name in artists:
         e = known.get(norm(name))
         if e:
-            out[name] = {"known": True, **{k: v for k, v in e.items() if k != "artist"}}
+            evidencia = {k: v for k, v in e.items() if k != "artist"}
+            nivel = vet.nivel_de_conocimiento(evidencia)
         elif deep and lf and lf.username:
             plays = lf.user_artist_playcount(name)
-            out[name] = {"known": plays > 3, "lastfm_plays": plays}
+            evidencia = {"lastfm_plays": plays}
+            nivel = vet.nivel_de_conocimiento(None, plays)
         else:
-            out[name] = {"known": False}
+            evidencia, nivel = {}, "nuevo"
+        out[name] = {"nivel": nivel,
+                     "known": nivel in ("conocido", "muy escuchado"),
+                     **evidencia}
         if name in opiniones:
             op = opiniones[name]
             out[name]["tu_opinion"] = {k: v for k, v in op.items()
@@ -451,6 +470,39 @@ def verify(artist: str, album: str = "", discography: bool = False) -> dict:
 
 # ---------- cómo quiere que le propongan ----------
 
+METODO = """\
+CÓMO USAR LAS HERRAMIENTAS AL PROPONER (aprendido de la primera semana real)
+
+Tu propio conocimiento es la mejor fuente para los CLÁSICOS y la HISTORIA: ahí
+no hace falta aval externo. Las herramientas se ganan el sueldo en tres sitios,
+y en esos no son opcionales:
+
+1. Saber qué conoce ya. Pasa SIEMPRE la lista de candidatos por
+   vet_candidates (una sola llamada para todos). Niveles: nuevo < rozado <
+   conocido < muy escuchado. Descarta conocidos y muy escuchados; "rozado"
+   SÍ vale (él quiere segundas escuchas), pero dilo: "ya lo rozaste".
+
+2. Lo NUEVO y lo EMERGENTE. Tu conocimiento tiene fecha de corte: no sabes
+   qué suena ahora ni si un grupo sigue activo. Por eso:
+   - En cada tanda, al menos UNA novedad debe salir de fuera de tu cabeza:
+     radio_tastemaker (qué apuesta KEXP esta semana), fresh_releases,
+     discover_emerging o music_press. Dile de dónde ha salido.
+   - Todo candidato de los últimos ~3 años pasa por vet_candidates:
+     prioriza los que tienen aval (KEXP o prensa). Si uno no tiene ninguno,
+     puede entrar, pero que sea una apuesta consciente.
+   - Si tiene sesión en KEXP, menciónalo: el directo le importa.
+
+3. Datos duros. Antes de afirmar un año, un sello o una formación, verify.
+   Antes de crear, resolve: elige la edición original y avisa si un disco
+   pasa de 70 min (suele ser deluxe o recopilatorio: busca el original o
+   mete solo las canciones con items=["album: ...", "Artista – Canción"]).
+
+Economía: nada de lo anterior gasta cuota de Spotify salvo resolve y
+create_playlist. listening_history y taste_profile salen de stats.fm.
+Spotify no permite crear carpetas por la API: dilo antes de empezar.
+Al crear, los discos quedan apuntados como "pendiente" en sus notas.
+"""
+
 @mcp.tool()
 def curation_guide() -> dict:
     """CÓMO escuchar y proponerle música. Léelo antes de curar nada.
@@ -463,12 +515,16 @@ def curation_guide() -> dict:
     éxito: una recomendación que no le gusta pero le hace entender por qué un
     disco importa es un acierto, no un fallo.
 
-    Vive en datos/perfil.md y él lo edita a mano cuando cambia de idea.
+    Devuelve además el MÉTODO: cuándo es obligatorio usar las fuentes
+    externas (novedades y emergentes) y cuándo basta tu conocimiento
+    (clásicos). Léelo entero.
+
+    La guía personal vive en datos/perfil.md y él la edita a mano.
     """
     ruta = Path(__file__).resolve().parent / "datos" / "perfil.md"
-    if not ruta.exists():
-        return {"error": "No hay datos/perfil.md todavía."}
-    return {"guia": ruta.read_text(encoding="utf-8")}
+    guia = (ruta.read_text(encoding="utf-8") if ruta.exists()
+            else "(No hay datos/perfil.md todavía.)")
+    return {"guia_personal": guia, "metodo": METODO}
 
 
 # ---------- tus opiniones ----------
@@ -595,6 +651,25 @@ def played_on_radio(artist: str) -> dict:
     return {"artist": artist, "veces": len(emisiones), "emisiones": emisiones[:15],
             "nota": ("Sin emisiones no significa nada malo: KEXP es una sola "
                      "emisora, con su propio sesgo hacia el rock anglosajón.")}
+
+
+@mcp.tool()
+def vet_candidates(artists: list[str]) -> dict:
+    """VALIDA UNA LISTA ENTERA de candidatos en una sola llamada. Úsalo
+    SIEMPRE antes de proponer, con todos los nombres que estés barajando.
+
+    Para cada artista: nivel de conocimiento (nuevo / rozado / conocido /
+    muy escuchado), su opinión si la hay, audiencia y público devoto, si
+    KEXP lo pincha y si tiene SESIÓN EN DIRECTO, y menciones en la prensa
+    archivada. El resumen separa lo descartable, lo rozado (que SÍ vale),
+    lo que tiene aval externo y lo que tiene sesión.
+
+    Hasta 20 artistas por llamada. Sin cuota de Spotify.
+    """
+    sp, lf, sf = _clients()
+    _require_lastfm(lf)
+    return vet.validar(artists, lf, kexp, _known(sp, lf, sf),
+                       notes.para(list(artists)))
 
 
 @mcp.tool()
@@ -814,41 +889,72 @@ def artist_context(artist: str) -> dict:
 # ---------- creación ----------
 
 @mcp.tool()
-def resolve(tracks: list[str] = [], albums: list[str] = []) -> dict:
+def resolve(tracks: list[str] = [], albums: list[str] = [],
+            items: list[str] = []) -> dict:
     """Comprueba en Spotify una propuesta SIN crear nada.
 
-    tracks: lista de "Artista – Canción"; albums: lista de "Artista – Álbum"
-    (se añaden completos). Devuelve lo resuelto (con año y duración), lo no
-    encontrado y los minutos totales. Úsalo antes de create_playlist para
-    corregir títulos o sustituir lo que falte.
+    Dos formas de pasarla:
+    - `items`, en el orden exacto de la lista: "Artista – Canción" o
+      "album: Artista – Álbum". Úsala si mezclas discos y canciones.
+    - `tracks` y `albums` por separado (las canciones van delante).
+
+    Elige la EDICIÓN ORIGINAL de cada disco (evita deluxes y antologías) y
+    avisa si alguno pasa de 70 minutos, que suele delatar una edición
+    ampliada. Úsalo siempre antes de create_playlist.
     """
     sp, _, _ = _clients()
     _require_auth(sp)
-    res = library.resolve_items(sp, tracks, albums)
+    res = (library.resolve_ordered(sp, items) if items
+           else library.resolve_items(sp, tracks, albums))
     res.pop("uris", None)
     return res
 
 
 @mcp.tool()
 def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
+                    items: list[str] = [],
                     description: str = "Curada con Playlist Lab",
                     public: bool = False) -> dict:
-    """Crea la playlist en Spotify a partir de "Artista – Canción" y/o
-    "Artista – Álbum" (álbumes completos, en el orden dado, tras las canciones).
+    """Crea la playlist en Spotify.
 
-    Devuelve la URL y lo que no se pudo resolver (se omite, no bloquea).
-    Pide confirmación al usuario antes de llamar a esto.
+    Igual que resolve: `items` para un orden exacto que mezcle discos
+    ("album: Artista – Álbum") y canciones ("Artista – Canción"), o
+    `tracks`/`albums` por separado.
+
+    Los discos que entran quedan apuntados como "pendiente" en sus notas
+    (salvo que ya tuvieran veredicto), para que cuando diga qué le
+    parecieron su opinión caiga sobre algo registrado.
+
+    Spotify NO permite crear carpetas por la API: si pide una, díselo antes
+    y que la haga él en la app de escritorio.
     """
     sp, _, _ = _clients()
     _require_auth(sp)
-    res = library.resolve_items(sp, tracks, albums)
+    res = (library.resolve_ordered(sp, items) if items
+           else library.resolve_items(sp, tracks, albums))
     if not res["uris"]:
         return {"error": "Nada que añadir: no se resolvió ningún elemento",
                 "unresolved": res["unresolved"]}
     created = library.create_playlist(sp, name, description, res["uris"], public)
+
+    apuntados = 0
+    ya = notes.cargar()["albumes"]
+    for fila in res["resolved"]:
+        if fila.get("type") != "album":
+            continue
+        clave = notes._clave_album(fila["artist"], fila["album"])
+        if ya.get(clave, {}).get("veredicto"):
+            continue
+        notes.anotar("album", fila["artist"], "pendiente",
+                     f"En la lista «{name}»", fila["album"])
+        apuntados += 1
+
     return {"created": created, "total_minutes": res["total_minutes"],
             "resolved": [r["input"] for r in res["resolved"]],
-            "unresolved": res["unresolved"]}
+            "avisos": [f"{r['input']}: {r['aviso']}" for r in res["resolved"]
+                       if r.get("aviso")] or None,
+            "unresolved": res["unresolved"],
+            "apuntados_como_pendiente": apuntados}
 
 
 # ---------- guía de curación ----------
@@ -863,9 +969,9 @@ Método:
 2. Piensa como un crítico que conoce escenas, sellos, discografías y reseñas (no como un algoritmo de similitud): busca artistas y discos que encajen con su gusto pero que probablemente no conozca, o que amplíen en una dirección coherente. Mezcla épocas y evita los nombres obvios salvo que el encargo lo pida. Tu criterio es el valor que aportas; las herramientas solo te dan los datos.
 2b. Si te faltan nombres, tira de las herramientas de exploración: explore_genre para el mapa de un género, explore_era para los clásicos de una franja, explore_scene para un lugar, discover_emerging para lo que acaba de salir y find_underrated para lo de culto.
 3. Si el encargo mira al presente (novedades, "lo último", este año), llama a new_releases y a music_press: tu conocimiento tiene fecha de corte y ahí es donde te equivocarás.
-4. Pasa tus candidatos por check_known y descarta los conocidos (o justifica incluirlos). similar_artists de Last.fm es solo una señal más, tiende a lo obvio.
+4. Pasa TODOS tus candidatos por vet_candidates en una sola llamada: descarta lo conocido, di cuándo algo está solo "rozado", y para lo nuevo prioriza lo que tiene aval externo (KEXP, prensa). Al menos una novedad por tanda debe venir de radio_tastemaker, fresh_releases, discover_emerging o music_press, no de tu memoria; di de dónde sale. Si algo tiene sesión en KEXP, menciónalo.
 5. Antes de afirmar años, sellos o discografías, contrástalos con verify. Es preferible una frase menos a un dato inventado.
-6. Verifica con resolve que todo existe en Spotify (y con album_info las duraciones si es una playlist de álbumes: ~70 min máximo por disco).
+6. Verifica con resolve que todo existe en Spotify. Elige la edición original; si avisa de más de 70 min, busca el disco original o mete solo sus mejores canciones con items.
 7. Presenta la propuesta con una frase por elección (por qué encaja y qué aporta) y pide confirmación.
 8. Solo entonces create_playlist. Nombre corto y descriptivo.
 9. Durante toda la conversación, cada vez que opine sobre algo ("esto me encanta", "de estos no me pongas más", "me lo apunto"), guárdalo con remember en ese momento. Es lo que hace que la próxima vez no empecemos de cero."""
@@ -879,7 +985,7 @@ def explorar(tema: str = "") -> str:
 No hagas una lista: cuenta una historia y que la lista salga de ella.
 
 1. Sitúa el terreno. Según el tema, explore_genre (qué es y quién lo puebla), explore_era (los clásicos de una franja de años, con fechas reales), explore_scene (un lugar y lo que salió de allí) o artist_context (un artista a fondo).
-2. Mira curation_guide, taste_profile y my_notes para enganchar lo nuevo con lo que ya escucha y no repetir lo que ya descartó: un viaje se entiende mejor desde casa. check_known te dice qué parte ya ha pisado y qué opinó.
+2. Mira curation_guide (sobre todo su "metodo"), taste_profile y my_notes para enganchar lo nuevo con lo que ya escucha y no repetir lo que ya descartó: un viaje se entiende mejor desde casa. vet_candidates te dice de una vez qué parte ya ha pisado, qué opinó y qué tiene aval externo.
 3. Aporta lo que las herramientas no tienen: por qué ese disco cambió algo, qué escuchaba la gente antes y después, qué grupo es el eslabón. Ese relato es tu trabajo; los datos solo lo sostienen.
 4. Si el tema mira al presente, discover_emerging y music_press. Si busca rarezas, find_underrated sobre tus sospechas.
 5. Contrasta con verify todo año, sello o formación antes de afirmarlo.
