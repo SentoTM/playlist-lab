@@ -1,9 +1,9 @@
 @echo off
 REM Diagnostico de las fuentes gratuitas (no gasta cuota de Spotify).
+REM Tarda un par de minutos: mientras veas lineas nuevas, esta trabajando.
 cd /d "%~dp0"
 if not exist .venv (echo Ejecuta primero setup.bat & pause & exit /b 1)
 call .venv\Scripts\activate.bat
-python scripts\diag_fuentes.py > diag_fuentes.txt 2>&1
-type diag_fuentes.txt
+python -u scripts\diag_fuentes.py
 echo.
 pause

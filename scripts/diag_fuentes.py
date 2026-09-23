@@ -1,96 +1,150 @@
 """Diagnóstico de las fuentes gratuitas: KEXP, ListenBrainz, MusicBrainz,
-Last.fm, Wikipedia y los feeds de prensa.
+Last.fm, stats.fm, Wikipedia y los feeds de prensa.
 
-Ninguna necesita cuota de Spotify, así que se puede ejecutar cuando quieras.
-Dice cuáles responden y con qué pinta vienen los datos.
+Ninguna gasta cuota de Spotify, así que se puede ejecutar cuando quieras.
+
+Enseña el progreso en pantalla según avanza y a la vez lo guarda en
+diag_fuentes.txt. Algunas fuentes son lentas a propósito (MusicBrainz solo
+admite una petición por segundo), así que tarda un par de minutos: si ves
+que avanza, no está colgado.
 
     .venv\\Scripts\\activate
-    python scripts/diag_fuentes.py > diag_fuentes.txt 2>&1
+    python scripts/diag_fuentes.py
 """
 import os
 import sys
+import time
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
+# La consola de Windows no siempre sabe UTF-8: que no reviente por un acento
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+except (AttributeError, ValueError):
+    pass
 
-load_dotenv(ROOT / ".env")
-
-from app.clients.kexp import KexpClient  # noqa: E402
-from app.clients.lastfm import LastfmClient  # noqa: E402
-from app.clients.listenbrainz import ListenbrainzClient  # noqa: E402
-from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
-from app.clients.press import PressClient  # noqa: E402
-from app.clients.statsfm import StatsfmClient  # noqa: E402
-from app.clients.wikipedia import WikipediaClient  # noqa: E402
+SALIDA = ROOT / "diag_fuentes.txt"
+_log = open(SALIDA, "w", encoding="utf-8")
+T0 = time.time()
 
 
-def seccion(titulo):
-    print("\n" + "=" * 68 + f"\n{titulo}\n" + "=" * 68)
+def out(texto: str = "") -> None:
+    """A pantalla y a fichero, sin búfer: si se corta, lo hecho queda."""
+    print(texto, flush=True)
+    _log.write(texto + "\n")
+    _log.flush()
 
 
-def muestra(etiqueta, valor, n=3):
+def seccion(titulo: str) -> None:
+    out("\n" + "=" * 68)
+    out(f"{titulo}   [{time.time() - T0:5.0f} s]")
+    out("=" * 68)
+
+
+def prueba(etiqueta: str, fn, n: int = 3) -> None:
+    """Ejecuta una comprobación, mide lo que tarda y nunca corta el resto."""
+    out(f"  ... {etiqueta}")
+    t = time.time()
+    try:
+        valor = fn()
+    except Exception as e:  # noqa: BLE001
+        out(f"  [ERROR] {etiqueta}: {type(e).__name__}: {e}")
+        out("          " + traceback.format_exc().strip().splitlines()[-1])
+        return
+    dur = time.time() - t
     if not valor:
-        print(f"  ⚠ {etiqueta}: VACÍO")
+        out(f"  [VACIO] {etiqueta} ({dur:.1f} s)")
         return
     if isinstance(valor, list):
-        print(f"  ✓ {etiqueta}: {len(valor)} elementos")
+        out(f"  [OK]    {etiqueta}: {len(valor)} elementos ({dur:.1f} s)")
         for v in valor[:n]:
-            print(f"      {v}")
+            out(f"            {str(v)[:220]}")
     else:
-        print(f"  ✓ {etiqueta}: {str(valor)[:300]}")
+        out(f"  [OK]    {etiqueta} ({dur:.1f} s): {str(valor)[:300]}")
 
 
 def main():
-    seccion("KEXP — qué pincha una radio con criterio")
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env")
+
+    from app.clients.kexp import KexpClient
+    from app.clients.lastfm import LastfmClient
+    from app.clients.listenbrainz import ListenbrainzClient
+    from app.clients.musicbrainz import MusicbrainzClient
+    from app.clients.press import PressClient
+    from app.clients.statsfm import StatsfmClient
+    from app.clients.wikipedia import WikipediaClient
+
+    out(f"Diagnóstico de fuentes gratuitas — {time.strftime('%Y-%m-%d %H:%M')}")
+    out("Tarda un par de minutos. Mientras veas '...' avanzar, está trabajando.")
+
+    seccion("1. KEXP — qué pincha una radio con criterio")
     k = KexpClient()
-    muestra("emisiones últimas 48 h", k.plays(limit=5, desde_dias=2))
-    muestra("artistas más pinchados (7 días)",
-            k.artistas_mas_pinchados(desde_dias=7, muestras=200), 5)
-    muestra("emisiones de Fontaines D.C.", k.emisiones_de("Fontaines D.C."), 2)
+    prueba("emisiones de las últimas 48 h", lambda: k.plays(limit=5, desde_dias=2))
+    prueba("artistas más pinchados esta semana",
+           lambda: k.artistas_mas_pinchados(desde_dias=7, muestras=100), 5)
+    prueba("emisiones de Fontaines D.C. (último año)",
+           lambda: k.emisiones_de("Fontaines D.C."), 2)
 
-    seccion("ListenBrainz — novedades y similares")
+    seccion("2. ListenBrainz — novedades y similares")
     lb = ListenbrainzClient()
-    muestra("novedades (21 días)", lb.novedades(21), 5)
+    prueba("novedades de las últimas 3 semanas", lambda: lb.novedades(21), 5)
     mb = MusicbrainzClient()
-    ficha = mb.find_artist("Fontaines D.C.")
-    muestra("ficha MusicBrainz", ficha)
-    if ficha:
-        muestra("similares por co-escucha", lb.similares(ficha["mbid"]), 5)
+    ficha = {}
 
-    seccion("MusicBrainz — sellos")
-    muestra("ficha del sello Speedy Wunderground", mb.buscar_sello("Speedy Wunderground"))
-    cat = mb.catalogo_sello("Speedy Wunderground")
-    muestra("catálogo del sello", cat.get("publicaciones") if isinstance(cat, dict) else None, 5)
-    muestra("sellos de Fontaines D.C.", mb.sellos_de("Fontaines D.C."))
-    muestra("novedades de Wet Leg desde 2025", mb.recent_by_artist("Wet Leg", "2025-01-01"))
+    def _ficha():
+        ficha.update(mb.find_artist("Fontaines D.C.") or {})
+        return ficha
+    prueba("ficha de Fontaines D.C. en MusicBrainz", _ficha)
+    if ficha.get("mbid"):
+        prueba("similares por co-escucha", lambda: lb.similares(ficha["mbid"]), 5)
 
-    seccion("Last.fm — etiquetas y audiencia")
+    seccion("3. MusicBrainz — sellos y novedades (1 petición/segundo)")
+    prueba("ficha del sello Speedy Wunderground",
+           lambda: mb.buscar_sello("Speedy Wunderground"))
+    prueba("catálogo de Speedy Wunderground",
+           lambda: (mb.catalogo_sello("Speedy Wunderground") or {}).get("publicaciones"), 5)
+    prueba("sellos de Fontaines D.C.", lambda: mb.sellos_de("Fontaines D.C."))
+    prueba("novedades de Wet Leg desde 2025",
+           lambda: mb.recent_by_artist("Wet Leg", "2025-01-01"))
+
+    seccion("4. Last.fm — etiquetas y audiencia")
     lf = LastfmClient(os.getenv("LASTFM_API_KEY", ""), os.getenv("LASTFM_USERNAME"))
-    muestra("info de etiqueta 'crank wave'", lf.tag_info("crank wave"))
-    muestra("artistas de 'post-punk' (página 3)", lf.tag_top_artists("post-punk", 10, 3), 5)
-    muestra("audiencia de Gurriers", lf.artist_info("Gurriers"))
+    prueba("etiqueta 'crank wave'", lambda: lf.tag_info("crank wave"))
+    prueba("artistas de 'post-punk' (página 3)",
+           lambda: lf.tag_top_artists("post-punk", 10, 3), 5)
+    prueba("audiencia de Gurriers", lambda: lf.artist_info("Gurriers"))
 
-    seccion("stats.fm — tu historial")
+    seccion("5. stats.fm — tu historial")
     sf = StatsfmClient(os.getenv("STATSFM_USERNAME", ""))
-    muestra("top artistas últimas semanas", sf.top_artists("weeks", 5), 5)
+    prueba("tus artistas de las últimas semanas",
+           lambda: sf.top_artists("weeks", 5), 5)
 
-    seccion("Wikipedia")
+    seccion("6. Wikipedia")
     w = WikipediaClient()
-    muestra("contexto de 'crank wave'", w.lookup("crank wave", "género musical"))
-    muestra("contexto de Gurriers", w.lookup("Gurriers", "banda grupo musical"))
+    prueba("contexto de 'crank wave'", lambda: w.lookup("crank wave", "género musical"))
+    prueba("contexto de Gurriers", lambda: w.lookup("Gurriers", "banda grupo musical"))
 
-    seccion("Prensa (RSS)")
-    res = PressClient().fetch(limit_per_source=2, since_days=30)
-    print(f"  fuentes consultadas: {len(res['fuentes'])}")
-    for aviso in res["warnings"]:
-        print(f"  ⚠ {aviso}")
-    muestra("artículos", [f"[{i['source']}] {i['title'][:60]}" for i in res["items"]], 6)
+    seccion("7. Prensa (RSS)")
 
-    print("\nListo. Pega la salida o dime que lea diag_fuentes.txt.")
+    def _prensa():
+        res = PressClient().fetch(limit_per_source=2, since_days=30)
+        out(f"          fuentes consultadas: {len(res['fuentes'])}")
+        for aviso in res["warnings"]:
+            out(f"          [!] {aviso}")
+        return [f"[{i['source']}] {i['title'][:60]}" for i in res["items"]]
+    prueba("artículos del último mes", _prensa, 6)
+
+    out(f"\nListo en {time.time() - T0:.0f} s. Resultado guardado en diag_fuentes.txt")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        out("\n[CORTADO] Interrumpido a mano; lo de arriba sí se completó.")
+    finally:
+        _log.close()
