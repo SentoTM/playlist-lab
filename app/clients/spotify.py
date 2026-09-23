@@ -277,7 +277,7 @@ class SpotifyClient:
     def playlist_tracks(self, playlist_id: str, max_items: int = 200) -> list[dict]:
         out = []
         for offset in range(0, max_items, 100):
-            items = self._get(f"/playlists/{playlist_id}/tracks",
+            items = self._get(f"/playlists/{playlist_id}/items",
                               limit=100, offset=offset).get("items", [])
             out.extend([i["track"] for i in items if i.get("track")])
             if len(items) < 100:
@@ -480,14 +480,20 @@ class SpotifyClient:
 
     def create_playlist(self, name: str, description: str, uris: list[str],
                         public: bool = False) -> dict:
-        user_id = self.me()["id"]
+        """Crea la playlist y la llena, en tandas de 100 (tope de la API).
+
+        Rutas actuales (sep. 2026): POST /me/playlists para crearla y
+        POST /playlists/{id}/items para llenarla. Las antiguas
+        (/users/{id}/playlists y /playlists/{id}/tracks) están deprecadas y
+        a las apps nuevas les devuelven 403.
+        """
         playlist = self._request(
-            "POST", f"/users/{user_id}/playlists",
+            "POST", "/me/playlists",
             json={"name": name, "description": description, "public": public},
         )
         for i in range(0, len(uris), 100):
             self._request(
-                "POST", f"/playlists/{playlist['id']}/tracks",
+                "POST", f"/playlists/{playlist['id']}/items",
                 json={"uris": uris[i:i + 100]},
             )
         return playlist
