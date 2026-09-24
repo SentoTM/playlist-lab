@@ -18,7 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (cache, discovery, dossier, explore, genealogy, jobs,  # noqa: E402
+from app import (cache, discovery, dossier, explore, genealogy, historial, jobs,  # noqa: E402
                  library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
@@ -514,10 +514,9 @@ Spotify no permite crear carpetas por la API: dilo antes de empezar.
 Al crear, los discos quedan apuntados como "pendiente" en sus notas.
 Cuando opine de varios a la vez, guárdalo con rate en una sola llamada.
 
-RECETAS: identifica qué tipo de petición es (menú de cinco, semana temática,
-novedades, "algo como X", genealogía, por dónde empezar, lista para un
-momento…) y pide su receta con recipes(tipo). En curation_guide ya va el
-índice. Si no encaja ninguna, combina las que se parezcan.
+RECETAS: mira el índice (va en 'recetas') y pide la tuya con recipes(tipo).
+Si no encaja ninguna, 'peticion_libre'. Lee los principios: las recetas son
+un suelo, no un techo, y la trampa principal es tirar de lo más citado.
 """
 
 @mcp.tool()
@@ -542,20 +541,16 @@ def curation_guide() -> dict:
     guia = (ruta.read_text(encoding="utf-8") if ruta.exists()
             else "(No hay datos/perfil.md todavía.)")
     return {"guia_personal": guia, "metodo": METODO,
-            "recetas": recetas.indice()["familias"]}
+            "recetas": recetas.indice()}
 
 
 @mcp.tool()
 def recipes(tipo: str = "") -> dict:
-    """Receta para un tipo de petición: qué aportas tú, qué herramientas usar
-    y en qué orden, formato de respuesta y trampas conocidas.
+    """Receta para un tipo de petición: qué tienes que pensar tú, qué
+    herramientas hacen falta (solo las imprescindibles) y trampas conocidas.
 
-    Sin tipo devuelve el índice (qué receta usar según lo que pida). Tipos:
-    menu_cinco, semana_tematica, novedades_emergentes, como_x_pero_nuevo,
-    salir_de_la_zona, iniciacion_genero, viaje_geografico, por_donde_empezar,
-    genealogia, caras_b_rarezas, infravalorados, segunda_escucha,
-    momento_actividad, seguir_esto, preparar_concierto, feedback_semana,
-    resumen_escuchas, que_opino_de.
+    Sin tipo devuelve el índice y los principios. Las recetas son un suelo,
+    no un techo: si la petición no encaja, usa 'peticion_libre'.
     """
     return recetas.receta(tipo) if tipo else recetas.indice()
 
@@ -800,6 +795,10 @@ def vet_candidates(artists: list[str]) -> dict:
     activo según MusicBrainz): si te piden emergentes, un veterano con disco
     nuevo no cuenta. El resumen separa lo descartable, lo rozado (que SÍ
     vale), lo que tiene aval externo, lo que tiene sesión y los veteranos.
+
+    Además: 'ya_propuestos_antes' (artistas que ya metiste en otras listas)
+    y 'diversidad' (países, décadas, etiquetas y avisos si más del 60 %
+    comparte uno). Son la medida objetiva de si estás tirando de lo obvio.
 
     Hasta 20 artistas por llamada. Sin cuota de Spotify.
     """
@@ -1133,6 +1132,8 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
         notes.anotar("album", fila["artist"], "pendiente",
                      f"En la lista «{name}»", fila["album"])
         apuntados += 1
+
+    historial.registrar([r["artist"] for r in res["resolved"] if r.get("artist")], name)
 
     return {"created": created, "total_minutes": res["total_minutes"],
             "resolved": [r["input"] for r in res["resolved"]],

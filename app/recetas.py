@@ -1,234 +1,209 @@
 """Recetario: cómo afrontar cada tipo de petición.
 
-Por qué existe: en las primeras pruebas, el modelo del chat improvisaba el
-procedimiento cada vez y se saltaba herramientas que le habrían servido (o
-usaba las que no tocaban, como la similitud para buscar influencias). Cada
-receta fija qué aporta el modelo, qué herramientas usar y en qué orden, el
-formato de salida y las trampas ya conocidas. No es una jaula: si una
-petición no encaja, se combinan recetas o se improvisa, pero con criterio.
+Cuidado con lo que esto puede provocar: una receta demasiado detallada
+convierte al modelo en alguien que rellena un formulario, y una lista de
+herramientas en orden hace que todas las listas salgan de las mismas
+fuentes. Por eso cada receta dice sobre todo QUÉ tiene que pensar el
+modelo, y solo nombra una herramienta cuando es la única forma de saber
+algo (lo nuevo, lo que ya conoce, las fechas). Las recetas son un suelo,
+no un techo.
 """
 
-COMUN = [
-    "Empieza siempre por curation_guide y my_notes (y taste_profile si la "
-    "receta lo pide): su criterio y lo que ya opinó mandan.",
-    "Todo candidato pasa por vet_candidates antes de proponerlo.",
-    "Antes de crear: resolve (edición original, aviso de >70 min). Tras crear, "
-    "los discos quedan como pendientes solos.",
-    "Spotify no permite carpetas por la API: si las pide, díselo al principio.",
-    "Cuando opine de algo durante la conversación, guárdalo (rate o remember).",
+PRINCIPIOS = [
+    "Las recetas son un suelo, no un techo. Si ves algo mejor, sal de ellas.",
+    "Piensa antes de buscar: haz tu lista desde tu conocimiento y tu criterio, y "
+    "usa las herramientas para comprobar, no para inspirarte. Excepción: lo "
+    "nuevo y lo emergente, donde tu memoria tiene fecha de corte y el radar manda.",
+    "Contra lo obvio: tu tendencia es ir a lo más citado de cada escena. Piensa "
+    "el doble de candidatos y quita la mitad más evidente. Si un nombre sale en "
+    "cualquier 'top 10' del tema, necesita una razón concreta para estar.",
+    "vet_candidates siempre: 'ya_propuestos_antes' y 'diversidad' son la "
+    "medida objetiva de si te estás repitiendo o concentrando.",
+    "Di de dónde sale cada propuesta (tu criterio, el radar, la prensa…) y "
+    "separa lo documentado de tu lectura.",
+    "Antes de crear, resolve. Spotify no permite carpetas por la API.",
+    "Si opina durante la conversación, guárdalo con rate o remember.",
 ]
 
 RECETAS = {
+    # ---------------- PETICIÓN ABIERTA ----------------
+    "peticion_libre": {
+        "familia": "abierta",
+        "cuando": "Cualquier cosa que no sea un género: una sensación, una imagen, "
+                  "una ciudad, una película, 'algo que suene a…'. En la duda, esta.",
+        "piensa": "Traduce la petición a rasgos escuchables: tempo, textura, voz, "
+                  "producción, instrumentos, época, idioma. NO existe dato de energía "
+                  "o tempo en las herramientas: es tu oído, dilo así.",
+        "hazlo": ["Escríbele primero 'Lo he entendido como: …' en una o dos líneas y "
+                  "deja que lo corrija si la petición es ambigua.",
+                  "Busca por rasgo, no por género: el rasgo cruza géneros y países.",
+                  "Las etiquetas de ánimo de Last.fm (explore_genre) sirven de "
+                  "comprobación, no de fuente."],
+        "cuidado": ["Irte al género que suele asociarse a la palabra ('triste' → "
+                    "slowcore siempre). Una sensación tiene muchas músicas."],
+    },
+    "hilo_no_genero": {
+        "familia": "abierta",
+        "cuando": "Un hilo transversal: un productor, un estudio, un instrumento, "
+                  "una técnica vocal, un año, una portada, un sello.",
+        "piensa": "Qué huella deja ese hilo en el sonido y cómo se reconoce de un "
+                  "disco a otro. El hilo tiene que oírse, no solo figurar en los créditos.",
+        "hazlo": ["Sello: labels_of y label_catalog. Año: explore_era. Productor o "
+                  "estudio: tu conocimiento, comprobando años con verify.",
+                  "Mezcla épocas y países que compartan el hilo."],
+        "cuidado": ["Quedarte con los tres discos famosos del productor."],
+    },
+
     # ---------------- DESCUBRIR ----------------
     "menu_cinco": {
         "familia": "descubrir",
-        "cuando": "Una lista de 5 discos variada: 'hazme el menú', 'cinco discos que me vayan a flipar'.",
-        "modelo": "Elige las cinco piezas y el orden de escucha; escribe una frase por disco.",
-        "pasos": [
-            "Casillas: afín, histórico, lateral, sorpresa, clásico (ver curation_guide).",
-            "La casilla afín o la de novedad sale del radar (encaja_contigo); la sorpresa puede salir de radar.fuera_de_tu_zona si tiene aval.",
-            "Histórico y clásico: tu conocimiento + verify si afirmas año o sello.",
-            "vet_candidates con los 5 (y 3-4 de reserva) → sustituye lo conocido.",
-            "resolve → create_playlist con items en el orden de escucha.",
-        ],
-        "formato": "Lista numerada en orden de escucha: disco, año, país, casilla y una frase de por qué a él.",
-        "trampas": ["Dos discos del mismo género y época: cada casilla debe mover algo distinto.",
-                    "Un 'emergente' que es veterano: mira la etapa en vet_candidates."],
+        "cuando": "Una tanda de 5 discos variada.",
+        "piensa": "Cinco piezas que se muevan en ejes distintos (afín, histórico, "
+                  "lateral, sorpresa, clásico: ver curation_guide) y un orden de escucha.",
+        "hazlo": ["Al menos la novedad sale del radar.", "Una frase por disco: por qué a él."],
+        "cuidado": ["Dos discos que mueven el mismo eje."],
     },
     "semana_tematica": {
         "familia": "descubrir",
-        "cuando": "Listas de lunes a viernes con un hilo o viaje entre ellas.",
-        "modelo": "El hilo narrativo y el título de cada día. Es lo que más valora de estas semanas.",
-        "pasos": [
-            "taste_profile (fase actual) para anclar el viaje en lo que escucha ahora.",
-            "Diseña el arco: qué se desmonta o recorre cada día y cómo converge el viernes.",
-            "Cada día con la estructura del menú de cinco; al menos una novedad por día del radar.",
-            "vet_candidates con los 25 de golpe (en dos llamadas de 20 si hace falta).",
-            "resolve por día → create_playlist por día, con nombre temático.",
-        ],
-        "formato": "Por día: título, una línea de concepto y los cinco discos con su papel. Cierre: qué se habrá aprendido el viernes.",
-        "trampas": ["Repetir artista entre días.", "Días de más de 5 h: vigila minutos en resolve."],
+        "cuando": "Listas de lunes a viernes con un hilo entre ellas.",
+        "piensa": "El arco de la semana: qué se recorre cada día y cómo converge. "
+                  "Es lo que más valora de estas semanas.",
+        "hazlo": ["Ancla el viaje en su fase actual (taste_profile).",
+                  "Cada día como un menú de cinco; una novedad del radar por día.",
+                  "Los 25 por vet_candidates y mira 'diversidad' del conjunto."],
+        "cuidado": ["Repetir artista entre días.", "Que los cinco días sean el mismo país y década."],
     },
     "novedades_emergentes": {
         "familia": "descubrir",
-        "cuando": "'Novedades', 'lo último', 'bandas emergentes', 'carne fresca'.",
-        "modelo": "Criterio para elegir entre los candidatos y contar por qué encajan. NO la fuente de nombres.",
-        "pasos": [
-            "radar (si 'actualizado' tiene más de una semana, radar_update).",
-            "Prioriza encaja_contigo triangulados; completa con radio_tastemaker, fresh_releases o music_press.",
-            "vet_candidates: etapa 'emergente' o 'consolidado'; fuera veteranos salvo que lo pida.",
-            "Si piden castellano, mira candidatos con etiquetas en español o de sellos españoles.",
-            "Si un disco aún no ha salido, mete el single con items.",
-        ],
-        "formato": "Por disco: de dónde ha salido (KEXP, sello, prensa…), por qué a él, y si tiene sesión en directo.",
-        "trampas": ["Sacar emergentes de memoria: tu conocimiento tiene fecha de corte.",
-                    "Discografías equivocadas cuando el grupo no está en Spotify: artist_releases ya avisa."],
+        "cuando": "Novedades, lo último, emergentes, carne fresca.",
+        "piensa": "Criterio para elegir y contar por qué encajan. Aquí NO eres la "
+                  "fuente de nombres: tu memoria no sabe qué ha salido.",
+        "hazlo": ["radar (radar_update si tiene más de una semana); completa con "
+                  "radio_tastemaker, fresh_releases o music_press.",
+                  "Etapa emergente o consolidado; veteranos solo si los pide."],
+        "cuidado": ["Sacar emergentes de memoria.", "Tomar el radar entero sin criterio: "
+                    "que mande el gusto, no la puntuación."],
     },
     "como_x_pero_nuevo": {
         "familia": "descubrir",
-        "cuando": "'Algo como X que no conozca', 'más cosas en la onda de…'.",
-        "modelo": "Qué tiene X que le gusta (voz, garra, bajo, actitud) y buscar ESO, no el género.",
-        "pasos": [
-            "dossier_artist(X) y my_notes: qué rasgo concreto le engancha de X.",
-            "Candidatos: tu criterio + similar_artists (Last.fm + ListenBrainz) + labels_of(X) → label_catalog.",
-            "vet_candidates; quita lo conocido.",
-        ],
-        "formato": "Cada propuesta con el rasgo compartido con X, dicho en una frase.",
-        "trampas": ["Similitud = primos obvios del mismo sonido: mezcla con tu criterio y con el sello."],
+        "cuando": "'Algo como X que no conozca'.",
+        "piensa": "Qué rasgo concreto de X le engancha (my_notes y lo que diga) y "
+                  "busca ESE rasgo, aunque esté en otro género.",
+        "hazlo": ["similar_artists solo como contraste: da primos obvios del mismo sonido."],
+        "cuidado": ["Devolver la lista de 'similares' de Last.fm con otras palabras."],
     },
     "salir_de_la_zona": {
         "familia": "descubrir",
-        "cuando": "'Sorpréndeme', 'algo lejano', 'sácame de mi mapa'.",
-        "modelo": "Encontrar la puerta de entrada: el anclaje (groove, voz, estructura) desde lo que ya le gusta.",
-        "pasos": [
-            "curation_guide: regla del anclaje en lo experimental.",
-            "radar.fuera_de_tu_zona (lo que tiene aval) + tu conocimiento.",
-            "Justifica el puente con algo que ya le gusta ('si te engancha el bajo de X…').",
-        ],
-        "formato": "Pocas piezas, cada una con su puerta de entrada explícita y qué escuchar primero.",
-        "trampas": ["Experimental sin anclaje: le desconecta (Tago Mago)."],
+        "cuando": "Sorpréndeme, algo lejano, antídoto a lo que llevo escuchando.",
+        "piensa": "Mira su fase actual (taste_profile) y ve a otro sitio a propósito, "
+                  "pero con una puerta de entrada desde algo que ya le gusta.",
+        "hazlo": ["radar.fuera_de_tu_zona para lo actual con aval.",
+                  "Cada pieza con su puente explícito."],
+        "cuidado": ["Experimental sin anclaje: le desconecta."],
     },
-    "iniciacion_genero": {
+    "escena_o_genero": {
         "familia": "descubrir",
-        "cuando": "'Enséñame el krautrock', 'introdúceme en el slowcore'.",
-        "modelo": "El relato: origen, discos clave, ramas, y un orden de escucha que sea un camino.",
-        "pasos": [
-            "explore_genre (mapa y contexto) y explore_era (lo fechado de verdad).",
-            "Enlaza con lo que ya escucha (taste_profile): por dónde le entra.",
-            "verify los años que afirmes; vet_candidates.",
-        ],
-        "formato": "Recorrido de 5-8 paradas en orden, una frase por parada con qué escuchar en ella.",
-        "trampas": ["Listas por popularidad de Last.fm tomadas como canon: el canon lo pones tú."],
+        "cuando": "Enséñame un género, una escena, un país o una ciudad.",
+        "piensa": "El relato (origen, ramas, conexiones) y un camino de escucha, no "
+                  "un canon de los más famosos. Incluye la rama menos contada.",
+        "hazlo": ["explore_genre / explore_era / explore_scene para fechas y "
+                  "contraste; artist_context (formacion_y_parentesco) para ver quién tocaba con quién."],
+        "cuidado": ["'Lo más escuchado' de un sitio es gusto mayoritario, no la escena."],
     },
-    "viaje_geografico": {
+    "escucha_a_ciegas": {
         "familia": "descubrir",
-        "cuando": "'Llévame a Japón', 'la escena de Manchester', 'qué se hace en Argentina'.",
-        "modelo": "La historia de la escena y su conexión con lo que él escucha.",
-        "pasos": ["explore_scene(lugar, etiqueta)", "radar/radio_tastemaker por si hay algo actual de allí",
-                  "vet_candidates y resolve"],
-        "formato": "Un recorrido con contexto breve de la escena y una frase por parada.",
-        "trampas": ["'Lo más escuchado allí' es gusto mayoritario, no la escena."],
+        "cuando": "Quiere escuchar sin prejuicios.",
+        "piensa": "Una lista que funcione sin saber de quién es cada cosa.",
+        "hazlo": ["Crea la playlist con nombre neutro y NO le digas los discos en el chat.",
+                  "Guarda la clave con remember (nota general) para revelarla luego.",
+                  "Al revelar, recoge su veredicto con rate."],
+        "cuidado": ["Spotify enseña el artista: funciona si él no mira la pantalla."],
     },
 
     # ---------------- PROFUNDIZAR ----------------
     "por_donde_empezar": {
         "familia": "profundizar",
-        "cuando": "'¿Por dónde empiezo con X?', 'discografía comentada de X'.",
-        "modelo": "Qué disco es la mejor puerta PARA ÉL, no el más famoso.",
-        "pasos": ["artist_context(X) y verify(X, discography=True)", "my_notes: qué discos de X ya tiene o valoró",
-                  "Ordena: puerta de entrada → el imprescindible → el raro que se disfruta después"],
-        "formato": "3-4 discos en orden de escucha con el porqué de ese orden.",
-        "trampas": ["Años de reedición: usa las fechas de verify."],
+        "cuando": "Por dónde empiezo con X; discografía comentada.",
+        "piensa": "Qué disco es la mejor puerta PARA ÉL, no el más famoso, y el orden después.",
+        "hazlo": ["verify(X, discography=True) para las fechas; my_notes por lo que ya valoró."],
+        "cuidado": ["Años de reedición."],
     },
     "genealogia": {
         "familia": "profundizar",
-        "cuando": "Influencias antes de cada disco o herederos después: 'megalista de influencias de X'.",
-        "modelo": "Proponer las influencias concretas de cada disco (entrevistas, reseñas) y el rasgo que pasa de uno a otro.",
-        "pasos": ["Usa el prompt 'genealogia'.",
-                  "influence_evidence por disco → propón → check_lineage → quita descartados y contemporáneos."],
-        "formato": "Bloques por disco, en orden. Cada enlace: rasgo concreto + si está documentado o es tu lectura.",
-        "trampas": ["Similitud para influencias: da primos, no abuelos.",
-                    "Con discos completos pasa de 10 h: ofrece partirla."],
+        "cuando": "Influencias antes de cada disco o herederos después.",
+        "piensa": "Influencias concretas de cada disco (entrevistas, reseñas) y el rasgo que pasa.",
+        "hazlo": ["Prompt 'genealogia': influence_evidence → propón → check_lineage."],
+        "cuidado": ["Similitud no es influencia.", "Las influencias 'de manual' "
+                    "(Velvet, Stooges…) valen si son de verdad; busca también las menos citadas."],
     },
-    "caras_b_rarezas": {
+    "arbol_de_musicos": {
         "familia": "profundizar",
-        "cuando": "'Caras B de X', 'lo menos conocido de X', rarezas de un artista que ya le gusta.",
-        "modelo": "Saber qué hay fuera de los discos: caras B, EPs, sesiones, versiones.",
-        "pasos": ["artist_releases(X) incluye singles y EPs", "my_library: qué tiene ya guardado de X",
-                  "resolve con canciones sueltas (items) comprobando que sean las versiones buscadas"],
-        "formato": "Lista de canciones con de dónde sale cada una (single, EP, sesión).",
-        "trampas": ["Versiones en directo o remasters colados en lugar de la original."],
+        "cuando": "Miembros, proyectos paralelos, de dónde salió un grupo.",
+        "piensa": "Qué aporta cada miembro y qué proyectos suenan distinto al principal.",
+        "hazlo": ["artist_context: formacion_y_parentesco (MusicBrainz) da la formación y los otros grupos de cada miembro."],
+        "cuidado": ["Proyectos homónimos: comprueba con vet_candidates."],
     },
-    "infravalorados": {
+    "versiones": {
         "familia": "profundizar",
-        "cuando": "'Discos infravalorados de los 90', 'joyas ocultas de…'.",
-        "modelo": "Proponer candidatos con criterio; los datos confirman si son de culto.",
-        "pasos": ["Tu lista de sospechosos + explore_era", "find_underrated para separar culto de desconocido",
-                  "vet_candidates"],
-        "formato": "Cada disco con por qué se le escapó a la gente y por qué a él le puede llegar.",
-        "trampas": ["'Infravalorado' con un millón de oyentes: find_underrated lo separa."],
+        "cuando": "Versiones, originales, cadenas de covers.",
+        "piensa": "Qué cambia cada versión. Solo las que conozcas con seguridad.",
+        "hazlo": ["resolve con canciones sueltas; si no aparece, dilo."],
+        "cuidado": ["Inventar versiones que no existen."],
+    },
+    "rarezas_e_infravalorados": {
+        "familia": "profundizar",
+        "cuando": "Caras B, rarezas, joyas ocultas, infravalorados.",
+        "piensa": "Por qué se le escapó a la gente y por qué a él le puede llegar.",
+        "hazlo": ["find_underrated separa culto de desconocido; artist_releases para singles y EPs."],
+        "cuidado": ["'Infravalorado' con un millón de oyentes."],
     },
     "segunda_escucha": {
         "familia": "profundizar",
-        "cuando": "'Dale otra oportunidad a…', recuperar lo que quedó 'sin pena ni gloria'.",
-        "modelo": "Encontrar otra puerta: el tema por el que entrar, el contexto que faltó.",
-        "pasos": ["my_notes: veredictos 'sin pena ni gloria' y 'no es para mí pero lo entiendo'",
-                  "Para cada uno: una canción puerta y un disco hermano más accesible"],
-        "formato": "Por disco: qué pudo fallar, por dónde entrar ahora.",
-        "trampas": ["Insistir con lo vetado ('nunca más'): no se toca."],
+        "cuando": "Recuperar lo que quedó 'sin pena ni gloria'.",
+        "piensa": "Otra puerta: la canción por la que entrar, el contexto que faltó.",
+        "hazlo": ["my_notes: veredictos tibios."],
+        "cuidado": ["Lo marcado 'nunca más' no se toca."],
     },
 
     # ---------------- MOMENTO ----------------
-    "momento_actividad": {
+    "momento": {
         "familia": "momento",
-        "cuando": "Lista para currar, correr, conducir, cenar… (canciones, no discos).",
-        "modelo": "Leer el momento (energía, atención) y hacer una curva, no un montón.",
-        "pasos": ["my_playlists: si ya tiene una para eso, ampliarla o hacer una hermana",
-                  "Mezcla conocido y nuevo (≈70/30 salvo que pida otra cosa)",
-                  "resolve con canciones (items) y create_playlist"],
-        "formato": "Canciones con arco (arranque, pico, bajada). Duración que pida el momento.",
-        "trampas": ["Para concentrarse: nada que exija atención (voces habladas, cambios bruscos)."],
+        "cuando": "Para currar, correr, conducir, una cena, un viaje, 'algo que siga a esto'.",
+        "piensa": "La curva del momento (arranque, pico, bajada) y cuánta atención pide. "
+                  "Canciones, no discos, salvo que diga lo contrario.",
+        "hazlo": ["now_playing si es 'algo que siga'.", "Viaje a un sitio: su escena "
+                  "(explore_scene) mezclada con música para el trayecto.",
+                  "Con gente que no comparte su gusto: puntos de encuentro sin traicionarle."],
+        "cuidado": ["Para concentrarse, nada que exija atención."],
     },
-    "seguir_esto": {
+    "concierto": {
         "familia": "momento",
-        "cuando": "'Pon algo que siga a esto', 'más como lo que suena'.",
-        "modelo": "Continuar la energía y el rasgo de lo que suena.",
-        "pasos": ["now_playing", "dossier_artist del que suena", "5-10 canciones que continúen"],
-        "formato": "Corta: una tanda para seguir escuchando, sin explicación larga.",
-        "trampas": [],
-    },
-    "preparar_concierto": {
-        "familia": "momento",
-        "cuando": "'Voy a ver a X', festival, cartel.",
-        "modelo": "Qué discos y canciones escuchar antes; en un cartel, qué no perderse.",
-        "pasos": ["Concierto: artist_context(X) + disco actual (artist_releases) + canciones clásicas de directo",
-                  "Festival: vet_candidates con el cartel → prioriza lo que no conoce y encaja, con aval"],
-        "formato": "Concierto: lista para llegar sabiéndose lo nuevo. Festival: a quién ver y por qué.",
-        "trampas": ["No inventes setlists: si no los tienes documentados, di que es aproximado."],
+        "cuando": "Voy a ver a X; un festival.",
+        "piensa": "Qué llevarse aprendido; en un cartel, a quién no perderse.",
+        "hazlo": ["Cartel entero por vet_candidates: prioriza lo que no conoce y encaja."],
+        "cuidado": ["No inventes setlists."],
     },
 
     # ---------------- MEMORIA ----------------
-    "feedback_semana": {
+    "repaso": {
         "familia": "memoria",
-        "cuando": "'Qué tal la semana', te cuenta qué le parecieron los discos.",
-        "modelo": "Traducir lo que dice a su escala y detectar patrones.",
-        "pasos": ["rate con todas las opiniones de una vez (o que use la página /semana)",
-                  "Busca patrones: qué casillas y rasgos funcionaron",
-                  "Propón ajustar curation_guide si un patrón se repite (con su visto bueno)"],
-        "formato": "Resumen breve: qué funcionó, qué no, qué cambia para la próxima.",
-        "trampas": ["Tratar 'no es para mí pero lo entiendo' como fracaso: es un acierto."],
-    },
-    "resumen_escuchas": {
-        "familia": "memoria",
-        "cuando": "'Mi mes en música', 'qué he escuchado', 'cómo ha cambiado mi gusto'.",
-        "modelo": "Leer tendencias y contarlas con gracia.",
-        "pasos": ["taste_profile (fase actual) y listening_history por rangos", "my_notes: descubrimientos del periodo"],
-        "formato": "Relato corto con lo que entró, lo que salió y hacia dónde va.",
-        "trampas": [],
-    },
-    "que_opino_de": {
-        "familia": "memoria",
-        "cuando": "'¿Qué dije de X?', '¿ya escuché Y?'.",
-        "modelo": "Responder directo.",
-        "pasos": ["check_known o vet_candidates con X", "my_notes"],
-        "formato": "Una respuesta corta con su opinión y cuándo la dio.",
-        "trampas": [],
+        "cuando": "Qué tal la semana, qué he escuchado, qué dije de X.",
+        "piensa": "Traducir lo que dice a su escala y ver patrones.",
+        "hazlo": ["rate en una llamada; taste_profile y listening_history para tendencias; my_notes."],
+        "cuidado": ["'No es para mí pero lo entiendo' es un acierto, no un fallo."],
     },
 }
 
 
 def indice() -> dict:
-    """Todas las recetas por familia, con cuándo usar cada una."""
     familias: dict[str, list] = {}
     for clave, r in RECETAS.items():
         familias.setdefault(r["familia"], []).append({"receta": clave, "cuando": r["cuando"]})
-    return {"familias": familias, "comun_a_todas": COMUN,
-            "nota": ("Identifica el tipo de petición y pide la receta. Si no encaja "
-                     "ninguna, combina las que se parezcan.")}
+    return {"familias": familias, "principios": PRINCIPIOS}
 
 
 def receta(clave: str) -> dict:
     r = RECETAS.get(clave)
     if not r:
         return {"error": f"No hay receta '{clave}'", **indice()}
-    return {"receta": clave, **r, "comun_a_todas": COMUN}
+    return {"receta": clave, **r, "principios": PRINCIPIOS}

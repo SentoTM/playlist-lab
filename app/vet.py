@@ -11,8 +11,10 @@ Solo fuentes gratuitas: nada de cuota de Spotify.
 """
 import datetime as dt
 import logging
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
+from . import historial
 from .clients import press
 from .clients.kexp import KexpClient
 from .clients.lastfm import LastfmClient
@@ -148,12 +150,18 @@ def validar(nombres: list[str], lf: LastfmClient, kexp: KexpClient,
             except Exception:  # noqa: BLE001
                 ficha = {}
             f["activo_desde"] = ficha.get("activo_desde")
+            f["pais"] = ficha.get("country")
             f["etapa"] = etapa(ficha.get("activo_desde"))
             if f["etapa"] == "veterano":
                 f["senales"].append(f"VETERANO: en activo desde {f['activo_desde'][:4]}; "
                                     "un disco suyo es novedad, no descubrimiento")
             elif f["etapa"] == "emergente":
                 f["senales"].append(f"emergente de verdad (desde {f['activo_desde'][:4]})")
+
+    for f, nombre in zip(filas, nombres):
+        f["ya_propuesto_en"] = historial.listas_de(nombre) or None
+        if f["ya_propuesto_en"]:
+            f["senales"].append("YA TE LO PROPUSE en: " + ", ".join(f["ya_propuesto_en"][:3]))
 
     descartar = [f["artist"] for f in filas
                  if f["nivel"] in ("conocido", "muy escuchado")
@@ -170,11 +178,46 @@ def validar(nombres: list[str], lf: LastfmClient, kexp: KexpClient,
             "con_sesion_kexp": [f["artist"] for f in filas if f["kexp"]["sesion_en_directo"]],
             "veteranos_no_emergentes": [f["artist"] for f in filas
                                         if f.get("etapa") == "veterano"],
+            "ya_propuestos_antes": [f["artist"] for f in filas if f.get("ya_propuesto_en")],
         },
+        "diversidad": diversidad(filas),
         "como_leerlo": (
             "nivel: nuevo < rozado < conocido < muy escuchado. 'Rozado' NO "
             "descarta: puedes proponerlo diciendo que ya lo oyó de pasada. "
             "Para novedades y emergentes, prioriza los que tienen aval externo "
             "(KEXP o prensa): tu conocimiento tiene fecha de corte. Si alguno "
-            "tiene sesión en KEXP, díselo: el directo le importa."),
+            "tiene sesión en KEXP, díselo: el directo le importa. "
+            "'ya_propuestos_antes' no descarta, pero repetir nombres es la señal "
+            "de que estás tirando de lo obvio: busca un nivel más hondo. Mira "
+            "'diversidad': si avisa de concentración, es que tu lista se ha "
+            "ido hacia un mismo sitio sin que él lo pidiera."),
     }
+
+
+CONCENTRACION = 0.6   # si más del 60 % comparte país, década o etiqueta
+
+
+def diversidad(filas: list[dict]) -> dict:
+    """Cuánto se parecen entre sí los candidatos: el control objetivo contra
+    el sesgo del modelo hacia lo más documentado (siempre los mismos países,
+    la misma década, la misma etiqueta)."""
+    n = len(filas)
+    paises = Counter(f.get("pais") for f in filas if f.get("pais"))
+    decadas = Counter(f"{f['activo_desde'][:3]}0s" for f in filas
+                      if (f.get("activo_desde") or "")[:4].isdigit())
+    etiquetas = Counter(t.lower() for f in filas for t in (f.get("etiquetas") or [])[:3])
+    oyentes = [f.get("oyentes") or 0 for f in filas if f.get("oyentes")]
+    avisos = []
+    if n >= 5:
+        for nombre, cont in (("país", paises), ("década de inicio", decadas),
+                             ("etiqueta", etiquetas)):
+            if cont:
+                valor, veces = cont.most_common(1)[0]
+                if veces / n >= CONCENTRACION:
+                    avisos.append(f"{veces} de {n} comparten {nombre}: {valor}")
+        masivos = sum(1 for o in oyentes if o > GRANDE)
+        if masivos / n >= 0.4:
+            avisos.append(f"{masivos} de {n} son masivos (más de un millón de oyentes)")
+    return {"paises": dict(paises.most_common()), "decadas": dict(sorted(decadas.items())),
+            "etiquetas_frecuentes": dict(etiquetas.most_common(5)),
+            "avisos": avisos or None}
