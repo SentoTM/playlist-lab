@@ -30,7 +30,7 @@ from app.clients.spotify import SpotifyClient, SpotifyRateLimited  # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
 from app.clients.wikidata import WikidataClient      # noqa: E402
 from app.clients.wikipedia import WikipediaClient    # noqa: E402
-from app.text import norm                            # noqa: E402
+from app.text import des_escapar, norm                            # noqa: E402
 
 PORT = os.getenv("PORT", "8888")
 mcp = FastMCP("playlist-lab", host="127.0.0.1", port=8877)
@@ -307,8 +307,9 @@ def listening_history(source: str = "statsfm", kind: str = "artists",
 
 @mcp.tool()
 def check_known(artists: list[str], deep: bool = True) -> dict:
-    """¿Conoce ya el usuario a estos artistas? (Mejor: vet_candidates, que
-    además trae audiencia, radio y prensa en la misma llamada.)
+    """¿Conoce ya el usuario a estos artistas? Solo para una duda suelta.
+    Para validar una PROPUESTA usa vet_candidates: además de esto trae
+    audiencia, radio, prensa, etapa y el control de diversidad.
 
     Devuelve `nivel`: nuevo < rozado (hasta 15 escuchas) < conocido < muy
     escuchado. `known` solo es True desde "conocido": lo rozado SÍ se puede
@@ -343,6 +344,9 @@ def check_known(artists: list[str], deep: bool = True) -> dict:
             op = opiniones[name]
             out[name]["tu_opinion"] = {k: v for k, v in op.items()
                                        if k != "artista"}
+        listas = historial.listas_de(name)
+        if listas:
+            out[name]["ya_propuesto_en"] = listas[:3]
     return out
 
 
@@ -1091,6 +1095,7 @@ def resolve(tracks: list[str] = [], albums: list[str] = [],
     res = (library.resolve_ordered(sp, items) if items
            else library.resolve_items(sp, tracks, albums))
     res.pop("uris", None)
+    res["revision"] = historial.revisar(res["resolved"])
     return res
 
 
@@ -1114,6 +1119,7 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
     """
     sp, _, _ = _clients()
     _require_auth(sp)
+    name, description = des_escapar(name), des_escapar(description)
     res = (library.resolve_ordered(sp, items) if items
            else library.resolve_items(sp, tracks, albums))
     if not res["uris"]:

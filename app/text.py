@@ -19,3 +19,12 @@ def parse_item(item: str) -> tuple[str, str]:
             a, t = item.split(sep, 1)
             return a.strip(), t.strip()
     raise ValueError(f"Formato no reconocido (usa 'Artista – Título'): {item!r}")
+
+
+_ESCAPE = re.compile(r"\\u([0-9a-fA-F]{4})")
+
+
+def des_escapar(s: str) -> str:
+    """Convierte '\\u00e9' literal en 'é'. A veces el modelo del chat manda
+    las tildes escapadas y acaban así en el nombre de la playlist."""
+    return _ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), s or "")

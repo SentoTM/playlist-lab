@@ -68,7 +68,7 @@ class _RateLimiter:
 
 class SpotifyClient:
     # compartidos por todas las instancias: la cuota de Spotify es por app
-    _limiter = _RateLimiter(8.0)
+    _limiter = _RateLimiter(5.0)
     peticiones = 0     # contador para saber cuánto cuesta cada operación
     limitaciones = 0   # cuántas veces nos han frenado con un 429
     bloqueado_hasta = 0.0  # marca de tiempo hasta la que Spotify nos frena

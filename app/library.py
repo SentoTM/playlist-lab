@@ -9,6 +9,7 @@ import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 
 from .clients.spotify import SpotifyClient
+from . import cache
 from .text import norm, parse_item
 
 # Un disco "normal" rara vez pasa de esto; por encima suele ser una edición
@@ -155,6 +156,23 @@ def _track_summary(t: dict) -> dict:
     }
 
 
+DIAS_MEMO = 7
+
+
+def _memo(clave: str, fn):
+    """Resultado de Spotify para un elemento, guardado 7 días. Lo típico es
+    resolve y después create_playlist con la misma lista: sin esto se paga
+    dos veces cada búsqueda. Solo se guarda lo encontrado."""
+    clave = "res:" + norm(clave)
+    hay, valor = cache.obtener(clave, DIAS_MEMO * 86400)
+    if hay:
+        return valor
+    valor = fn()
+    if valor:
+        cache.guardar(clave, valor)
+    return valor
+
+
 def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> dict:
     """Resuelve listas de 'Artista – Canción' y 'Artista – Álbum'.
 
@@ -170,15 +188,17 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
             artist, title = parse_item(item)
         except ValueError as e:
             return item, None, str(e)
-        return item, find_track(sp, artist, title), None
+        return item, _memo("t:" + item, lambda: find_track(sp, artist, title)), None
 
     def do_album(item: str):
         try:
             artist, album = parse_item(item)
         except ValueError as e:
             return item, None, str(e)
-        a = find_album(sp, artist, album)
-        return item, (album_details(sp, a["id"]) if a else None), None
+        def buscar():
+            a = find_album(sp, artist, album)
+            return album_details(sp, a["id"]) if a else None
+        return item, _memo("a:" + item, buscar), None
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         track_results = list(pool.map(do_track, tracks))
@@ -230,9 +250,12 @@ def resolve_ordered(sp: SpotifyClient, items: list[str]) -> dict:
         except ValueError as e:
             return item, "album" if es_album else "track", None, str(e)
         if es_album:
-            a = find_album(sp, artista, titulo)
-            return item, "album", (album_details(sp, a["id"]) if a else None), None
-        return item, "track", find_track(sp, artista, titulo), None
+            def buscar():
+                a = find_album(sp, artista, titulo)
+                return album_details(sp, a["id"]) if a else None
+            return item, "album", _memo(f"a:{artista} – {titulo}", buscar), None
+        return item, "track", _memo(f"t:{artista} – {titulo}",
+                                    lambda: find_track(sp, artista, titulo)), None
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         filas = list(pool.map(uno, items))

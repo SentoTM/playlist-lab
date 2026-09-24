@@ -15,7 +15,7 @@ import os
 import threading
 from pathlib import Path
 
-from .text import norm
+from .text import des_escapar, norm
 
 ARCHIVO = Path(__file__).resolve().parents[1] / "datos" / "notas.json"
 _lock = threading.Lock()
@@ -75,6 +75,7 @@ def anotar(tipo: str, sujeto: str, veredicto: str = "", nota: str = "",
     Vuelve a escribir sobre la anterior si ya había una del mismo sujeto,
     conservando la fecha en que se dijo por primera vez.
     """
+    sujeto, nota, album = des_escapar(sujeto), des_escapar(nota), des_escapar(album)
     if veredicto and veredicto not in VEREDICTOS:
         raise ValueError(f"Veredicto no válido: {veredicto!r}. "
                          f"Usa uno de: {', '.join(VEREDICTOS)}")
