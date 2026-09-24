@@ -40,10 +40,23 @@ def _es_del_tema(query: str, titulo: str, resumen: str) -> bool:
     return q in primera or qc in primera.replace(" ", "")
 
 
+_INFLUENCIA = re.compile(
+    r"influenc|inspir|drew (on|from)|draws on|cited|citing|indebted|reminiscent|"
+    r"compared (to|with)|in the vein of|listening to|homage|legacy|paved the way|"
+    r"influy|inspirad|bebe de|deudor|heredero|precursor", re.I)
+
+
+def _plano_simple(texto: str) -> str:
+    """Para buscar nombres dentro del texto sin tildes ni mayúsculas."""
+    t = unicodedata.normalize("NFKD", (texto or "").lower())
+    return "".join(c for c in t if not unicodedata.combining(c))
+
+
 # Buscar "Gurriers banda grupo musical" en la Wikipedia inglesa no encuentra
 # nada: la pista tiene que ir en el idioma de cada edición.
 _PISTAS_EN = {"banda grupo musical": "band", "género musical": "music genre",
-              "álbum": "album", "música escena": "music scene"}
+              "álbum": "album", "música escena": "music scene",
+              "álbum de": "album by"}
 
 
 def _traducir_pista(pista: str, lang: str) -> str:
@@ -106,3 +119,38 @@ class WikipediaClient:
                     if _es_del_tema(query, summary["titulo"], summary["resumen"]):
                         return summary
         return {}
+
+    # ---------- texto completo e influencias ----------
+
+    def texto_completo(self, lang: str, titulo: str) -> str:
+        """El artículo entero en texto plano (el resumen no llega a las
+        secciones de contexto y estilo, que es donde se citan influencias)."""
+        try:
+            resp = self._http.get(f"https://{lang}.wikipedia.org/w/api.php", params={
+                "action": "query", "prop": "extracts", "explaintext": 1,
+                "redirects": 1, "titles": titulo, "format": "json"})
+            resp.raise_for_status()
+            paginas = resp.json().get("query", {}).get("pages", {})
+            return next(iter(paginas.values()), {}).get("extract", "") or ""
+        except (httpx.HTTPError, ValueError, StopIteration) as e:
+            log.warning("Wikipedia texto '%s' (%s): %s", titulo, lang, e)
+            return ""
+
+    def frases_de_influencia(self, consulta: str, pista: str = "",
+                             limite: int = 12) -> dict:
+        """Frases del artículo que hablan de influencias, con su fuente.
+
+        Busca el artículo (del disco o del artista), lee el texto completo y
+        devuelve las frases con palabras como "influenced", "inspired",
+        "drew on", "cited"… Es lo que convierte "el modelo dice" en "esto
+        está documentado aquí".
+        """
+        articulo = self.lookup(consulta, pista)
+        if not articulo:
+            return {}
+        texto = self.texto_completo(articulo.get("idioma", "en"), articulo["titulo"])
+        frases = [f.strip() for f in re.split(r"(?<=[.!?])\s+", texto) if f.strip()]
+        halladas = [f for f in frases if _INFLUENCIA.search(f)]
+        return {"articulo": articulo["titulo"], "url": articulo.get("url"),
+                "idioma": articulo.get("idioma"), "frases": halladas[:limite],
+                "texto_plano": _plano_simple(texto)}

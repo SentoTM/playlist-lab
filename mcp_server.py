@@ -18,8 +18,8 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (cache, discovery, dossier, explore, jobs, library,  # noqa: E402
-                 notes, radar as radar_mod, seguimiento, taste, vet)
+from app import (cache, discovery, dossier, explore, genealogy, jobs,  # noqa: E402
+                 library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.kexp import KexpClient              # noqa: E402
@@ -28,6 +28,7 @@ from app.clients import press as press_mod          # noqa: E402
 from app.clients.press import FEEDS, PressClient     # noqa: E402
 from app.clients.spotify import SpotifyClient, SpotifyRateLimited  # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
+from app.clients.wikidata import WikidataClient      # noqa: E402
 from app.clients.wikipedia import WikipediaClient    # noqa: E402
 from app.text import norm                            # noqa: E402
 
@@ -37,6 +38,7 @@ press = PressClient()
 mb = MusicbrainzClient()
 wiki = WikipediaClient()
 kexp = KexpClient()
+wd = WikidataClient()
 lb = ListenbrainzClient()
 
 _cache: dict = {}
@@ -511,6 +513,11 @@ create_playlist. listening_history y taste_profile salen de stats.fm.
 Spotify no permite crear carpetas por la API: dilo antes de empezar.
 Al crear, los discos quedan apuntados como "pendiente" en sus notas.
 Cuando opine de varios a la vez, guárdalo con rate en una sola llamada.
+
+RECETAS: identifica qué tipo de petición es (menú de cinco, semana temática,
+novedades, "algo como X", genealogía, por dónde empezar, lista para un
+momento…) y pide su receta con recipes(tipo). En curation_guide ya va el
+índice. Si no encaja ninguna, combina las que se parezcan.
 """
 
 @mcp.tool()
@@ -534,7 +541,23 @@ def curation_guide() -> dict:
     ruta = Path(__file__).resolve().parent / "datos" / "perfil.md"
     guia = (ruta.read_text(encoding="utf-8") if ruta.exists()
             else "(No hay datos/perfil.md todavía.)")
-    return {"guia_personal": guia, "metodo": METODO}
+    return {"guia_personal": guia, "metodo": METODO,
+            "recetas": recetas.indice()["familias"]}
+
+
+@mcp.tool()
+def recipes(tipo: str = "") -> dict:
+    """Receta para un tipo de petición: qué aportas tú, qué herramientas usar
+    y en qué orden, formato de respuesta y trampas conocidas.
+
+    Sin tipo devuelve el índice (qué receta usar según lo que pida). Tipos:
+    menu_cinco, semana_tematica, novedades_emergentes, como_x_pero_nuevo,
+    salir_de_la_zona, iniciacion_genero, viaje_geografico, por_donde_empezar,
+    genealogia, caras_b_rarezas, infravalorados, segunda_escucha,
+    momento_actividad, seguir_esto, preparar_concierto, feedback_semana,
+    resumen_escuchas, que_opino_de.
+    """
+    return recetas.receta(tipo) if tipo else recetas.indice()
 
 
 # ---------- radar de novedades y emergentes ----------
@@ -876,6 +899,54 @@ def fresh_releases(dias: int = 21, solo_desconocidos: bool = True) -> dict:
             "lanzamientos": lanzamientos[:60]}
 
 
+# ---------- genealogía: influencias y herederos ----------
+
+@mcp.tool()
+def influence_evidence(artist: str, album: str = "") -> dict:
+    """Lo DOCUMENTADO sobre de dónde viene un disco y a quién llevó.
+
+    Wikidata (influencias declaradas del artista, en las dos direcciones) y
+    las frases de Wikipedia donde se citan influencias, del artículo del
+    disco y del del artista, con su enlace; más la fecha de primera edición.
+
+    Úsalo ANTES de proponer una genealogía: te da nombres con respaldo y te
+    recuerda otros que quizá no habías pensado. OJO: la similitud de
+    Last.fm/ListenBrainz no sirve para esto (da contemporáneos, no
+    influencias). Tarda unos segundos.
+    """
+    clave = f"infl:{norm(artist)}:{norm(album)}"
+
+    def calcular():
+        ev = genealogy.evidencia(artist, album, wd, wiki, mb)
+        ev.pop("_textos", None)
+        return ev
+
+    return jobs.run_or_wait(clave, lambda: cache.recordar(clave, 7 * 24 * 3600, calcular))
+
+
+@mcp.tool()
+def check_lineage(artist: str, album: str, candidatos: list[str],
+                  direccion: str = "antes") -> dict:
+    """Comprueba una genealogía propuesta y etiqueta cada enlace.
+
+    `candidatos`: lo que TÚ propones, como "Artista – Álbum" (o solo
+    "Artista"). `direccion`: "antes" (influencias del disco) o "despues"
+    (herederos). Hasta 12 por llamada.
+
+    Cada candidato vuelve con una etiqueta:
+    - documentado: Wikidata o Wikipedia lo respaldan; puedes afirmarlo.
+    - plausible (criterio del modelo): cuadra en fechas pero sin documento;
+      preséntalo como criterio tuyo, no como hecho.
+    - descartado por fechas: una "influencia" posterior al disco, o un
+      "heredero" anterior. Quítalo.
+    - dudoso: mismo año. / sin fecha: no se pudo comprobar.
+    Tarda unos segundos por candidato (MusicBrainz va a una petición/s).
+    """
+    clave = f"linaje:{norm(artist)}:{norm(album)}:{direccion}:{'|'.join(map(norm, candidatos))}"
+    return jobs.run_or_wait(clave, lambda: genealogy.comprobar(
+        artist, album, candidatos, direccion, wd, wiki, mb))
+
+
 # ---------- exploración ----------
 
 @mcp.tool()
@@ -1105,6 +1176,24 @@ No hagas una lista: cuenta una historia y que la lista salga de ella.
 5. Contrasta con verify todo año, sello o formación antes de afirmarlo.
 6. Ofrece un recorrido corto (5-8 piezas o discos) con una frase por parada que diga qué escuchar en ella. Confirma antes de crear nada con create_playlist.
 7. Guarda con remember lo que vaya opinando por el camino, incluido lo que le apetece escuchar más adelante ("pendiente")."""
+
+
+@mcp.prompt()
+def genealogia(artista: str = "", direccion: str = "antes") -> str:
+    """Megalista de influencias o herederos disco a disco."""
+    antes = not direccion.lower().startswith("desp")
+    return f"""Monta una megalista GENEALÓGICA de {artista or '(pregunta de qué artista)'}, disco a disco, con DISCOS COMPLETOS.
+
+Formato: {"antes de cada disco suenan 2-3 discos que lo influyeron" if antes else "después de cada disco suenan 2-3 discos que heredaron su sonido"}. Orden cronológico de la discografía.
+
+1. curation_guide y my_notes (qué conoce, qué opinó). artist_releases o verify con discography=True para la discografía real y sus fechas.
+2. Para CADA disco del artista: influence_evidence(artista, disco). Lee lo documentado: te dará nombres con respaldo y otros en los que no habías pensado.
+3. Propón tú 3-4 candidatos por disco: el detalle ("mientras grababan escuchaban…") lo sabes tú mejor que ninguna base de datos. Pásalos por check_lineage con direccion="{'antes' if antes else 'despues'}".
+4. Quita lo "descartado por fechas". Prioriza lo "documentado". Lo "plausible" puede entrar si lo presentas como criterio tuyo, no como hecho.
+5. No repitas un disco en dos bloques. Pasa todos los artistas por vet_candidates: lo muy escuchado se puede quitar (salvo que sea imprescindible para el relato) y lo "rozado" vale.
+6. resolve con items en el orden exacto: ["album: Influencia 1 – Disco", "album: Influencia 2 – Disco", "album: {artista or 'Artista'} – Disco 1", ...]. Revisa avisos de más de 70 min.
+7. Presenta el viaje bloque a bloque: por cada enlace, UNA frase que diga qué rasgo concreto pasa de un disco a otro (la voz, el bajo, la actitud, la producción) y si está documentado o es tu lectura. Avisa de la duración total (con discos completos suele pasar de 10 h) y ofrece partirla en varias listas.
+8. Solo tras confirmar, create_playlist con items. Los discos quedan como pendientes en sus notas."""
 
 
 if __name__ == "__main__":
