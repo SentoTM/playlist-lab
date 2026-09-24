@@ -255,6 +255,24 @@ class SpotifyClient:
         items = self._get("/me/tracks", limit=limit, offset=offset).get("items", [])
         return [i["track"] for i in items if i.get("track")]
 
+    def saved_tracks_since(self, desde_iso: str, max_items: int = 100) -> list[dict]:
+        """Canciones guardadas desde una fecha (vienen de la más nueva a la
+        más vieja, así que se para al pasar la fecha: suele ser 1 petición)."""
+        out = []
+        for offset in range(0, max_items, 50):
+            items = self._get("/me/tracks", limit=50, offset=offset).get("items", [])
+            for i in items:
+                if (i.get("added_at") or "") < desde_iso:
+                    return out
+                t = i.get("track") or {}
+                out.append({"artist": (t.get("artists") or [{}])[0].get("name", ""),
+                            "track": t.get("name", ""),
+                            "album": (t.get("album") or {}).get("name", ""),
+                            "added_at": i.get("added_at")})
+            if len(items) < 50:
+                break
+        return out
+
     def all_saved_tracks(self, max_items: int = 600) -> list[dict]:
         """Toda tu biblioteca de canciones guardadas (paginando)."""
         out = []

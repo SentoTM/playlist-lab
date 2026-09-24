@@ -152,6 +152,31 @@ class LastfmClient:
                  "artist": a.get("artist", {}).get("name", "")}
                 for a in items if a.get("name")]
 
+    def recent_tracks(self, desde: int, max_paginas: int = 20) -> list[dict]:
+        """Scrobbles desde un instante (unix), del más reciente al más antiguo.
+
+        Es la fuente de la huella: con fecha y disco de cada escucha se sabe
+        si un disco propuesto se escuchó entero, a medias o se volvió a él.
+        """
+        if not self.username:
+            return []
+        out = []
+        for pagina in range(1, max_paginas + 1):
+            data = self._get("user.getRecentTracks", user=self.username,
+                             limit=200, page=pagina, extended=0, **{"from": desde})
+            bloque = data.get("recenttracks", {})
+            for t in bloque.get("track", []) or []:
+                if (t.get("@attr") or {}).get("nowplaying"):
+                    continue
+                out.append({"artist": (t.get("artist") or {}).get("#text", ""),
+                            "album": (t.get("album") or {}).get("#text", ""),
+                            "track": t.get("name", ""),
+                            "uts": int((t.get("date") or {}).get("uts") or 0)})
+            total = int((bloque.get("@attr") or {}).get("totalPages") or 1)
+            if pagina >= total:
+                break
+        return out
+
     def user_artist_playcount(self, artist: str) -> int:
         """Cuántas veces ha escuchado el usuario a un artista (0 si nunca)."""
         if not self.username:

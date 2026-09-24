@@ -18,7 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (cache, discovery, dossier, explore, genealogy, historial, jobs,  # noqa: E402
+from app import (cache, discovery, dossier, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
@@ -492,8 +492,10 @@ y en esos no son opcionales:
 
 1. Saber qué conoce ya. Pasa SIEMPRE la lista de candidatos por
    vet_candidates (una sola llamada para todos). Niveles: nuevo < rozado <
-   conocido < muy escuchado. Descarta conocidos y muy escuchados; "rozado"
-   SÍ vale (él quiere segundas escuchas), pero dilo: "ya lo rozaste".
+   conocido < muy escuchado. Si pide DESCUBRIR, fuera conocidos y muy
+   escuchados; "rozado" SÍ vale (él quiere segundas escuchas), dilo: "ya lo
+   rozaste". Si la petición es un momento o una sensación, algo conocido
+   puede entrar de ancla si encaja de diez: poco y avisando.
 
 2. Lo NUEVO y lo EMERGENTE. Tu conocimiento tiene fecha de corte: no sabes
    qué suena ahora ni si un grupo sigue activo. Por eso:
@@ -517,6 +519,9 @@ create_playlist. listening_history y taste_profile salen de stats.fm.
 Spotify no permite crear carpetas por la API: dilo antes de empezar.
 Al crear, los discos quedan apuntados como "pendiente" en sus notas.
 Cuando opine de varios a la vez, guárdalo con rate en una sola llamada.
+Antes de una tanda nueva, mira footprint: qué prendió de lo anterior
+(volvió, guardó, tiró del hilo). Sigue esos hilos; no insistas en lo que
+quedó sin tocar, pero tampoco lo tomes como un no.
 
 RECETAS: mira el índice (va en 'recetas') y pide la tuya con recipes(tipo).
 Si no encaja ninguna, 'peticion_libre'. Lee los principios: las recetas son
@@ -1140,6 +1145,8 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
         apuntados += 1
 
     historial.registrar([r["artist"] for r in res["resolved"] if r.get("artist")], name)
+    huella_mod.registrar_lista(name, res["resolved"],
+                               (created or {}).get("url", "") if isinstance(created, dict) else "")
 
     return {"created": created, "total_minutes": res["total_minutes"],
             "resolved": [r["input"] for r in res["resolved"]],
@@ -1147,6 +1154,27 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
                        if r.get("aviso")] or None,
             "unresolved": res["unresolved"],
             "apuntados_como_pendiente": apuntados}
+
+
+@mcp.tool()
+def footprint(lista: str = "", dias: int = 60) -> dict:
+    """HUELLA: qué hizo de verdad con lo que le propusiste, sin que tenga
+    que opinar. Escucha mientras trabaja y a menudo no dirá nada; esto sí.
+
+    Por lista y por disco o canción: escuchas desde que se creó la lista,
+    pistas distintas (entero / a medias / sin tocar), si volvió otro día,
+    si se guardó alguna canción y si tiró del hilo con otras cosas del
+    artista. 'prendio' marca lo que agarró: por ahí conviene seguir.
+
+    Úsala antes de proponer algo nuevo (para no insistir en lo que no
+    prendió y tirar de lo que sí) y cuando hable de cómo le fue la semana.
+    `lista` filtra por nombre (parcial). Last.fm + 1 petición a Spotify.
+    """
+    sp, lf, _ = _clients()
+    _require_lastfm(lf)
+    return cache.recordar(
+        f"huella:{norm(lista)}:{dias}", 1800,
+        lambda: huella_mod.huella(lf, sp if sp.authenticated else None, lista, dias))
 
 
 # ---------- guía de curación ----------

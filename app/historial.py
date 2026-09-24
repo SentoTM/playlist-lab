@@ -77,10 +77,11 @@ def revisar(resueltos: list[dict]) -> dict:
         avisos.append("Artistas repetidos en la lista: " + ", ".join(repetidos))
     if ya:
         avisos.append(f"{len(ya)} de {len(set(artistas))} artistas ya te los propuse en otras "
-                      "listas: ¿es a propósito o estás tirando de lo de siempre?")
+                      "listas. Si es porque encajan de verdad, bien; si es inercia, busca otros")
     if n >= 5 and decadas:
         dec, veces = decadas.most_common(1)[0]
         if veces / n >= 0.6:
-            avisos.append(f"{veces} de {n} son de los {dec}; si no lo pidió, abre el abanico")
+            avisos.append(f"{veces} de {n} son de los {dec}: bien si es la idea, "
+                          "revisa si no lo buscabas")
     return {"ya_propuestos": ya or None, "decadas": dict(sorted(decadas.items())),
             "avisos": avisos or None}

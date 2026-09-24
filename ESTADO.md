@@ -209,3 +209,18 @@ Y la cuota importa: cada tanda de pruebas gasta de un saldo compartido que
 tarda más de una hora en reponerse. Antes de lanzar una consulta grande,
 mirar `status`, que ahora dice si Spotify nos tiene frenados y qué hay en
 caché.
+
+## Hacia el "cerebro musical" (sep. 2026)
+
+Idea acordada: nada de currículo. El gusto crece siguiendo sus ganas; el
+sistema planta semillas y mira cuáles prenden.
+
+1. Huella (hecho): `footprint` cruza cada lista creada (datos/listas.json)
+   con los scrobbles de Last.fm y las canciones guardadas: entero / a medias
+   / sin tocar, si volvió otro día, si tiró del hilo del artista.
+2. Semillas (siguiente): una pieza por lista marcada como semilla; si prende
+   según la huella, el modelo sigue ese hilo en la próxima petición.
+3. Mapa: territorios pisados, que gustaron, semillas abiertas y vecinos sin
+   explorar, construido solo a partir de historial + huella + opiniones.
+4. Opinión rápida: veredicto + "sensación" libre en /semana; el modelo la
+   traduce a vocabulario (glosario personal).

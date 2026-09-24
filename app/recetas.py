@@ -14,11 +14,18 @@ PRINCIPIOS = [
     "Piensa antes de buscar: haz tu lista desde tu conocimiento y tu criterio, y "
     "usa las herramientas para comprobar, no para inspirarte. Excepción: lo "
     "nuevo y lo emergente, donde tu memoria tiene fecha de corte y el radar manda.",
-    "Contra lo obvio: tu tendencia es ir a lo más citado de cada escena. Piensa "
-    "el doble de candidatos y quita la mitad más evidente. Si un nombre sale en "
-    "cualquier 'top 10' del tema, necesita una razón concreta para estar.",
-    "vet_candidates siempre: 'ya_propuestos_antes' y 'diversidad' son la "
-    "medida objetiva de si te estás repitiendo o concentrando.",
+    "Lo obvio no es malo; lo malo es lo obvio por inercia. Tu tendencia es ir a "
+    "lo más citado de cada escena, así que piensa más candidatos de los que "
+    "necesitas y quédate con los que MEJOR sirven a la idea. Un clásico que él "
+    "no ha escuchado y le abre el gusto es un acierto. Pregúntate por cada "
+    "pieza: ¿está porque es la mejor para esto o porque es la primera que me salió?",
+    "Si la petición NO es de descubrir (un momento, una sensación, un viaje), "
+    "puede entrar algo que ya conoce si encaja de diez: hace de ancla. Pocas "
+    "piezas y dilo ('esta ya la conoces, pero es la que mejor cuenta esto'). "
+    "Si pide descubrir, lo conocido fuera; lo rozado sí vale.",
+    "vet_candidates siempre: 'ya_propuestos_antes' y 'diversidad' son una "
+    "alarma, no una prohibición. Si la concentración es la idea (una escena, "
+    "una década), está bien; si no la buscabas, revisa.",
     "Di de dónde sale cada propuesta (tu criterio, el radar, la prensa…) y "
     "separa lo documentado de tu lectura.",
     "Antes de crear, resolve. Spotify no permite carpetas por la API.",

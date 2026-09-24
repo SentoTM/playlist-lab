@@ -187,10 +187,11 @@ def validar(nombres: list[str], lf: LastfmClient, kexp: KexpClient,
             "Para novedades y emergentes, prioriza los que tienen aval externo "
             "(KEXP o prensa): tu conocimiento tiene fecha de corte. Si alguno "
             "tiene sesión en KEXP, díselo: el directo le importa. "
-            "'ya_propuestos_antes' no descarta, pero repetir nombres es la señal "
-            "de que estás tirando de lo obvio: busca un nivel más hondo. Mira "
-            "'diversidad': si avisa de concentración, es que tu lista se ha "
-            "ido hacia un mismo sitio sin que él lo pidiera."),
+            "'ya_propuestos_antes' y 'diversidad' son alarmas, no prohibiciones: "
+            "un clásico que no conoce vale si es el mejor para la idea; lo que "
+            "hay que evitar es elegir por inercia. 'ya_conocidos_o_descartados' "
+            "se descartan si pide descubrir; en una lista de momento, algo "
+            "conocido puede ir de ancla si encaja de diez, avisando."),
     }
 
 
