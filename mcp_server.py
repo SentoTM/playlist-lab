@@ -737,7 +737,7 @@ def artist_releases(artist: str, limit: int = 20) -> dict:
                 "nota": ("No uses otra discografía en su lugar: di que no está "
                          "en Spotify o busca el nombre exacto.")}
     albums = sp.artist_albums(encontrado["id"], limit=limit, artist_name=artist)
-    return {"artist": encontrado.get("name"), "n": len(albums), "albumes": [
+    return {"artist": encontrado.get("name"), "aviso": aviso, "n": len(albums), "albumes": [
         {"album": a.get("name"), "fecha": a.get("release_date"),
          "tipo": a.get("album_type"), "canciones": a.get("total_tracks"),
          "id": a.get("id")} for a in albums]}
@@ -793,7 +793,7 @@ def played_on_radio(artist: str) -> dict:
 
 
 @mcp.tool()
-def vet_candidates(artists: list[str]) -> dict:
+def vet_candidates(artists: list[str], idioma: bool = False) -> dict:
     """VALIDA UNA LISTA ENTERA de candidatos en una sola llamada. Úsalo
     SIEMPRE antes de proponer, con todos los nombres que estés barajando.
 
@@ -809,12 +809,16 @@ def vet_candidates(artists: list[str]) -> dict:
     y 'diversidad' (países, décadas, etiquetas y avisos si más del 60 %
     comparte uno). Son la medida objetiva de si estás tirando de lo obvio.
 
+    Con idioma=True añade el idioma de las letras, el país y el último
+    lanzamiento según MusicBrainz (una petición más por artista, ~1 s cada
+    una): úsalo cuando pidan un idioma concreto ("en castellano").
+
     Hasta 20 artistas por llamada. Sin cuota de Spotify.
     """
     sp, lf, sf = _clients()
     _require_lastfm(lf)
     return vet.validar(artists, lf, kexp, _known(sp, lf, sf),
-                       notes.para(list(artists)), mb=mb)
+                       notes.para(list(artists)), mb=mb, idioma=idioma)
 
 
 @mcp.tool()
@@ -1000,13 +1004,18 @@ def explore_era(genre: str, year_from: int, year_to: int, limit: int = 60) -> di
 @mcp.tool()
 def discover_emerging(genres: list[str], max_listeners: int = 150000,
                       months: int = 18, limit: int = 40,
-                      deep_page: int = 5) -> dict:
+                      deep_page: int = 5, idioma: str = "") -> dict:
     """Bandas emergentes de unos géneros: pequeñas y activas ahora.
 
     Toma los artistas etiquetados en esos géneros en Last.fm saltando las
     primeras páginas del ranking (donde están los grandes), se queda con los
     que tienen `max_listeners` oyentes o menos y no conoce el usuario, y mira
-    en Spotify si han publicado algo en los últimos `months` meses.
+    en MusicBrainz si han publicado algo en los últimos `months` meses, en
+    qué país y en qué idioma cantan. NO gasta cuota de Spotify.
+
+    `idioma` filtra por el idioma de las letras (código ISO 639-3: "spa"
+    castellano, "cat", "glg", "eus", "por", "eng"…). Las etiquetas de Last.fm
+    tipo "rock en español" arrastran de todo; esto no.
 
     Por defecto empieza en la página 5 del ranking de cada etiqueta: en las
     primeras siguen saliendo clásicos (en "post-punk", la 3 aún da Wire o
@@ -1022,13 +1031,13 @@ def discover_emerging(genres: list[str], max_listeners: int = 150000,
     parámetros para recoger el resultado.
     """
     sp, lf, sf = _clients()
-    _require_auth(sp)
     _require_lastfm(lf)
-    key = f"emerg:{','.join(genres)}:{max_listeners}:{months}:{deep_page}:{limit}"
+    key = f"emerg:{','.join(genres)}:{max_listeners}:{months}:{deep_page}:{limit}:{idioma}"
 
     def calcular():
         return explore.emerging(sp, lf, genres, _known(sp, lf, sf),
-                                max_listeners, months, limit, deep_page)
+                                max_listeners, months, limit, deep_page,
+                                mb=mb, idioma=idioma or None)
 
     return jobs.run_or_wait(key, calcular)
 
@@ -1153,7 +1162,9 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
             "avisos": [f"{r['input']}: {r['aviso']}" for r in res["resolved"]
                        if r.get("aviso")] or None,
             "unresolved": res["unresolved"],
-            "apuntados_como_pendiente": apuntados}
+            "apuntados_como_pendiente": apuntados,
+            "huella": ("Registrada: footprint seguirá qué escucha de esta lista "
+                       "(también las canciones sueltas), no hace falta apuntar nada.")}
 
 
 @mcp.tool()

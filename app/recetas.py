@@ -87,6 +87,10 @@ RECETAS = {
                   "fuente de nombres: tu memoria no sabe qué ha salido.",
         "hazlo": ["radar (radar_update si tiene más de una semana); completa con "
                   "radio_tastemaker, fresh_releases o music_press.",
+                  "Si hay búsqueda web: las listas anuales de la prensa que baja al "
+                  "underground (Rockdelux, Mondo Sonoro, The Quietus) son oro.",
+                  "En un idioma concreto: discover_emerging(idioma='spa') y "
+                  "vet_candidates(idioma=True); las etiquetas no bastan.",
                   "Etapa emergente o consolidado; veteranos solo si los pide."],
         "cuidado": ["Sacar emergentes de memoria.", "Tomar el radar entero sin criterio: "
                     "que mande el gusto, no la puntuación."],

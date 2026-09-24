@@ -39,8 +39,12 @@ def _plano(s: str) -> str:
 def _artist_matches(candidate: dict, artist: str) -> bool:
     names = [_plano(a.get("name", "")) for a in candidate.get("artists", [])]
     buscado = _plano(artist)
+    # Colaboraciones ("X & Y", "X feat. Y") sí, pero como palabras enteras:
+    # con subcadenas a secas, "Biela" casaba con "Lisa Bielawa".
+    def contiene(grande: str, chico: str) -> bool:
+        return bool(chico) and re.search(rf"(^|\s){re.escape(chico)}(\s|$)", grande) is not None
     return any(n == buscado for n in names) or any(
-        buscado and n and (buscado in n or n in buscado) for n in names)
+        buscado and n and (contiene(n, buscado) or contiene(buscado, n)) for n in names)
 
 
 def find_track(sp: SpotifyClient, artist: str, title: str) -> dict | None:
@@ -69,9 +73,14 @@ def find_artist(sp: SpotifyClient, nombre: str) -> tuple[dict | None, str | None
     """
     resultados = sp.search_artist(nombre, limit=5)
     buscado = _plano(nombre)
-    for a in resultados:
-        if _plano(a.get("name", "")) == buscado:
-            return a, None
+    exactos = [a for a in resultados if _plano(a.get("name", "")) == buscado]
+    if len(exactos) > 1:
+        return exactos[0], (f"Hay {len(exactos)} artistas llamados '{nombre}' en "
+                            "Spotify; esta discografía es de uno de ellos. Si ves "
+                            "discos que no cuadran (otra época, otro estilo), "
+                            "son de un homónimo: no los uses.")
+    if exactos:
+        return exactos[0], None
     for a in resultados:  # "The X" / "X", "X & The Y"...
         n = _plano(a.get("name", ""))
         if buscado and n and (n == f"the {buscado}" or buscado == f"the {n}"):

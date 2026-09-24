@@ -112,7 +112,8 @@ def era(mb: MusicbrainzClient, sp: SpotifyClient, lf: LastfmClient,
 
 def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
              known: dict, max_listeners: int = 150_000, months: int = 18,
-             limit: int = 40, deep_page: int = 5) -> dict:
+             limit: int = 40, deep_page: int = 5, mb=None,
+             idioma: str | None = None) -> dict:
     """Bandas emergentes: de un género, con poca audiencia y activas ahora.
 
     Por qué así: Spotify ha dejado de devolver `genres` y `popularity` en las
@@ -148,48 +149,45 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
 
     fallos: dict[str, int] = {}
 
-    def ultimo_disco(name: str) -> dict | None:
-        try:
-            from .library import find_artist
-            encontrado, _ = find_artist(sp, name)
-            if not encontrado:
-                return None
-            albums = [a for a in sp.artist_albums(encontrado["id"], limit=10)
-                      if a.get("album_type") in ("album", "single")]
-            if not albums:
-                return None
-            ultimo = max(albums, key=lambda a: a.get("release_date", ""))
-            return {"album": ultimo.get("name"), "fecha": ultimo.get("release_date"),
-                    "tipo": ultimo.get("album_type"), "id": ultimo.get("id")}
-        except SpotifyRateLimited:
-            fallos["límite de cuota de Spotify"] = \
-                fallos.get("límite de cuota de Spotify", 0) + 1
+    # Actividad e idioma en MusicBrainz, no en Spotify: antes eran hasta
+    # cinco peticiones de Spotify por artista y tres llamadas a esta
+    # herramienta agotaban la cuota de la sesión. MusicBrainz no gasta cuota
+    # (va a 1 petición/s) y además dice en qué idioma están las letras.
+    def actividad(name: str) -> dict | None:
+        if mb is None:
             return None
+        try:
+            return mb.actividad(name, cutoff)
         except Exception as e:  # noqa: BLE001
-            log.warning("Último disco de %s falló: %s", name, e)
+            log.warning("MusicBrainz falló con %s: %s", name, e)
             fallos[type(e).__name__] = fallos.get(type(e).__name__, 0) + 1
             return None
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        discos = list(pool.map(ultimo_disco, [n for n, _ in pequenos[:limit]]))
+    datos = [actividad(n) for n, _ in pequenos[:limit]]
 
-    activos, dormidos, sin_spotify = [], [], []
-    for (name, info), disco in zip(pequenos[:limit], discos):
+    activos, dormidos, otro_idioma, idioma_sin_confirmar = [], [], [], []
+    for (name, info), d in zip(pequenos[:limit], datos):
+        d = d or {}
         row = {"artist": info["artist"], "oyentes": info["listeners"],
                "escuchas_por_oyente": info["escuchas_por_oyente"],
-               "tags": info["tags"], "ultimo_disco": disco,
+               "tags": info["tags"],
+               "ultimo_disco": ({"album": d["ultimo"]["titulo"], "fecha": d["ultimo"]["fecha"]}
+                                if d.get("ultimo") else None),
+               "idioma_letras": d.get("idioma"), "pais": d.get("pais"),
                "bio": info["bio"][:280]}
-        if disco is None:
-            sin_spotify.append(row)
-        elif (disco["fecha"] or "") >= cutoff:
-            activos.append(row)
-        else:
+        if not row["ultimo_disco"]:
             dormidos.append(row)
+        elif idioma and row["idioma_letras"] and row["idioma_letras"] != idioma:
+            otro_idioma.append(row)
+        elif idioma and not row["idioma_letras"]:
+            idioma_sin_confirmar.append(row)
+        else:
+            activos.append(row)
 
     activos.sort(key=lambda r: r["ultimo_disco"]["fecha"], reverse=True)
     return {
         "generos_buscados": genres[:4],
-        "avisos": ([f"{n} artistas no se pudieron comprobar en Spotify por "
+        "avisos": ([f"{n} artistas no se pudieron comprobar en MusicBrainz por "
                     f"{motivo}; la lista está incompleta"
                     for motivo, n in fallos.items()] or None),
         "embudo": {"candidatos_de_las_etiquetas": len(unicos),
@@ -201,9 +199,13 @@ def emerging(sp: SpotifyClient, lf: LastfmClient, genres: list[str],
                      f"grandes), con {max_listeners:,} oyentes o menos y que no "
                      f"conoces."),
         "activos": activos,
-        "sin_disco_reciente": dormidos[:15],
-        "no_estan_en_spotify": [r["artist"] for r in sin_spotify],
-        "nota": ("'Activos' = han publicado algo desde " + cutoff + ". Que sea "
+        "sin_disco_reciente_catalogado": [r["artist"] for r in dormidos[:20]],
+        "idioma_sin_confirmar": idioma_sin_confirmar if idioma else None,
+        "en_otro_idioma": [f"{r['artist']} ({r['idioma_letras']})" for r in otro_idioma] or None,
+        "nota": ("'Activos' = MusicBrainz tiene algo suyo publicado desde " + cutoff
+                 + " (lo muy reciente puede tardar en catalogarse: 'sin disco "
+                 "reciente catalogado' no significa inactivo). Antes de proponer, "
+                 "comprueba en Spotify solo los que elijas (resolve). Que sea "
                  "pequeño y reciente no lo hace bueno: contrasta con "
                  "music_press y con tu propio criterio antes de proponerlo."),
     }

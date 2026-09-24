@@ -136,7 +136,8 @@ def _uno(nombre: str, lf: LastfmClient, kexp: KexpClient,
 
 
 def validar(nombres: list[str], lf: LastfmClient, kexp: KexpClient,
-            conocidos: dict, opiniones: dict, mb=None) -> dict:
+            conocidos: dict, opiniones: dict, mb=None,
+            idioma: bool = False) -> dict:
     nombres = [n for n in dict.fromkeys(nombres) if n][:20]
     with ThreadPoolExecutor(max_workers=6) as pool:
         filas = list(pool.map(
@@ -157,6 +158,16 @@ def validar(nombres: list[str], lf: LastfmClient, kexp: KexpClient,
                                     "un disco suyo es novedad, no descubrimiento")
             elif f["etapa"] == "emergente":
                 f["senales"].append(f"emergente de verdad (desde {f['activo_desde'][:4]})")
+            if idioma:
+                try:
+                    act = mb.actividad(nombre) or {}
+                except Exception:  # noqa: BLE001
+                    act = {}
+                f["idioma_letras"] = act.get("idioma")
+                f["ultimo_en_musicbrainz"] = act.get("ultimo")
+                f["pais"] = f.get("pais") or act.get("pais")
+                if act.get("idioma"):
+                    f["senales"].append(f"letras en '{act['idioma']}' según MusicBrainz")
 
     for f, nombre in zip(filas, nombres):
         f["ya_propuesto_en"] = historial.listas_de(nombre) or None

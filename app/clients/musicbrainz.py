@@ -116,6 +116,40 @@ class MusicbrainzClient:
             })
         return out
 
+    def actividad(self, artista: str, desde: str | None = None) -> dict:
+        """Último lanzamiento, idioma de las letras y país, en UNA petición.
+
+        Sustituye a preguntarle a Spotify por la discografía cuando solo hace
+        falta saber si un grupo sigue activo (discover_emerging gastaba ahí
+        casi toda la cuota). Y trae algo que Spotify y Last.fm no tienen: el
+        idioma de las letras que los catalogadores anotan en cada edición
+        ("spa", "eng"…). Solo cuenta ediciones acreditadas a ese nombre exacto.
+        """
+        q = f'artist:"{artista}"' + (f" AND date:[{desde} TO *]" if desde else "")
+        data = self._get("/release", query=q, limit=40)
+        buscado = "".join(c for c in artista.lower() if c.isalnum())
+        idiomas, paises, fechas = {}, {}, []
+        for r in data.get("releases", []):
+            credito = "".join(c.get("name", "") + c.get("joinphrase", "")
+                              for c in r.get("artist-credit") or [] if isinstance(c, dict))
+            if "".join(ch for ch in credito.lower() if ch.isalnum()) != buscado:
+                continue
+            lengua = (r.get("text-representation") or {}).get("language")
+            if lengua and lengua not in ("zxx", "mul", "und"):
+                idiomas[lengua] = idiomas.get(lengua, 0) + 1
+            if r.get("country"):
+                paises[r["country"]] = paises.get(r["country"], 0) + 1
+            if r.get("date"):
+                fechas.append((r["date"], r.get("title")))
+        fechas.sort(reverse=True)
+        return {
+            "ultimo": ({"titulo": fechas[0][1], "fecha": fechas[0][0]} if fechas else None),
+            "idioma": max(idiomas, key=idiomas.get) if idiomas else None,
+            "idiomas": idiomas or None,
+            "pais": max(paises, key=paises.get) if paises else None,
+            "ediciones": len(fechas),
+        }
+
     def recent_by_artist(self, artist: str, desde: str, limit: int = 15) -> list[dict]:
         """Álbumes y EPs de un artista publicados desde `desde` (YYYY-MM-DD).
 
