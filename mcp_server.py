@@ -1252,7 +1252,9 @@ Formato: {"antes de cada disco suenan 2-3 discos que lo influyeron" if antes els
 if __name__ == "__main__":
     if "--http" in sys.argv:
         # En local: 127.0.0.1:8877. En Railway: HOST=0.0.0.0 y PORT lo pone él.
-        mcp.run(transport="http", host=os.getenv("HOST", "127.0.0.1"),
+        en_railway = bool(os.getenv("RAILWAY_ENVIRONMENT"))
+        mcp.run(transport="http",
+                host=os.getenv("HOST", "0.0.0.0" if en_railway else "127.0.0.1"),
                 port=int(os.getenv("PORT", "8877")))
     else:
         mcp.run(transport="stdio")

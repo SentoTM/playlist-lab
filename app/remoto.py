@@ -45,6 +45,10 @@ def opciones_de_seguridad() -> dict:
     """auth + middleware para FastMCP, o {} si no estamos en el servidor."""
     cid, secreto = os.getenv("GITHUB_CLIENT_ID"), os.getenv("GITHUB_CLIENT_SECRET")
     if not (cid and secreto):
+        if os.getenv("RAILWAY_ENVIRONMENT") and "--http" in __import__("sys").argv:
+            # En internet sin login, cualquiera con la URL usaría tus datos.
+            raise RuntimeError("En Railway hacen falta GITHUB_CLIENT_ID y "
+                               "GITHUB_CLIENT_SECRET: no arranco sin login.")
         return {}
     base = _url_publica()
     permitidos = _permitidos()
