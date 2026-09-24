@@ -21,6 +21,8 @@ from . import historial, notes
 from .text import des_escapar, norm
 
 RUTA = Path(__file__).resolve().parent.parent / "datos" / "listas.json"
+RUTA_SCROBBLES = RUTA.with_name("scrobbles.json")
+ARRAIGO_DIAS = 14     # volver a algo pasadas dos semanas es la señal más fuerte
 _lock = threading.Lock()
 
 ENTERO = 0.8          # fracción de pistas distintas para contar "entero"
@@ -88,6 +90,44 @@ def _todas() -> dict:
     return listas
 
 
+# ---------- scrobbles: almacén incremental ----------
+
+def scrobbles_desde(lf, desde: int) -> list[dict]:
+    """Scrobbles desde `desde`, guardados en disco y pedidos solo los nuevos.
+
+    Sin esto, mirar dos meses atrás a alguien que escucha mucho supone miles
+    de scrobbles por consulta, y con un tope de páginas se perdían justo los
+    primeros días de cada lista. Así cada consulta trae solo lo último.
+    """
+    try:
+        datos = json.loads(RUTA_SCROBBLES.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        datos = {"desde": None, "filas": []}
+    filas = datos["filas"]
+    tengo_desde = datos.get("desde")
+    ultimo = max((f[0] for f in filas), default=0)
+    if tengo_desde is None or desde < tengo_desde:
+        # hace falta historia más antigua: se pide el hueco que falta
+        hasta_hueco = tengo_desde or 0
+        viejos = [t for t in lf.recent_tracks(desde, max_paginas=100)
+                  if not hasta_hueco or t["uts"] < hasta_hueco]
+        filas += [[t["uts"], t["artist"], t["album"], t["track"]] for t in viejos]
+        datos["desde"] = desde
+    nuevos = lf.recent_tracks(ultimo + 1, max_paginas=100) if ultimo else []
+    filas += [[t["uts"], t["artist"], t["album"], t["track"]] for t in nuevos]
+    vistos, limpias = set(), []
+    for f in sorted(filas):
+        clave = (f[0], f[3])
+        if clave not in vistos:
+            vistos.add(clave)
+            limpias.append(f)
+    datos["filas"] = limpias
+    RUTA_SCROBBLES.parent.mkdir(exist_ok=True)
+    RUTA_SCROBBLES.write_text(json.dumps(datos, ensure_ascii=False), encoding="utf-8")
+    return [{"uts": f[0], "artist": f[1], "album": f[2], "track": f[3]}
+            for f in limpias if f[0] >= desde]
+
+
 # ---------- cálculo ----------
 
 def _k(s: str) -> str:
@@ -146,7 +186,20 @@ def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
             fila["otras_cosas_del_artista"] = len(otros)
             fila["canciones_guardadas"] = [g["track"] for g in guardo][:5] or None
 
+            ult_propia = dias_distintos[-1] if dias_distintos else None
+            ult_otros = (dt.date.fromtimestamp(max(s["uts"] for s in otros)).isoformat()
+                         if otros else None)
+            fila["ultima_escucha"] = max(filter(None, [ult_propia, ult_otros]), default=None)
             senales = []
+            inicio = dt.date.fromisoformat(fecha)
+            if ult_propia and (dt.date.fromisoformat(ult_propia) - inicio).days >= ARRAIGO_DIAS:
+                semanas = (dt.date.fromisoformat(ult_propia) - inicio).days // 7
+                senales.append(f"ARRAIGÓ: sigue volviendo a esto {semanas} semanas después")
+                fila["arraigo"] = True
+            elif ult_otros and (dt.date.fromisoformat(ult_otros) - inicio).days >= ARRAIGO_DIAS:
+                semanas = (dt.date.fromisoformat(ult_otros) - inicio).days // 7
+                senales.append(f"ARRAIGÓ EL ARTISTA: {semanas} semanas después escucha otras cosas suyas")
+                fila["arraigo"] = True
             if len(dias_distintos) >= 2:
                 senales.append(f"volvió otro día ({len(dias_distintos)} días distintos)")
             if guardo:
@@ -177,6 +230,8 @@ def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
             "resumen": {
                 "prendieron": [f["album"] if f.get("album") else f["artista"]
                                for f in filas if f["prendio"]],
+                "arraigaron": [f["album"] if f.get("album") else f["artista"]
+                               for f in filas if f.get("arraigo")],
                 "enteros": sum(1 for f in filas if f["estado"] == "entero"),
                 "a_medias": sum(1 for f in filas if f["estado"].startswith("a medias")),
                 "sin_tocar": sum(1 for f in filas if f["estado"] == "sin tocar"),
@@ -186,7 +241,7 @@ def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
     return salida
 
 
-def huella(lf, sp=None, lista: str = "", dias: int = 60) -> dict:
+def huella(lf, sp=None, lista: str = "", dias: int = 180) -> dict:
     listas = _todas()
     if lista:
         elegidas = {k: v for k, v in listas.items() if norm(lista) in norm(k)}
@@ -200,7 +255,7 @@ def huella(lf, sp=None, lista: str = "", dias: int = 60) -> dict:
         return {"error": f"No hay listas de los últimos {dias} días"}
     desde = min(v["fecha"] for v in listas.values())
     avisos = []
-    scrobbles = lf.recent_tracks(_ts(desde))
+    scrobbles = scrobbles_desde(lf, _ts(desde))
     guardadas = []
     if sp is not None:
         try:
@@ -212,6 +267,8 @@ def huella(lf, sp=None, lista: str = "", dias: int = 60) -> dict:
             "como_leerlo": (
                 "Es lo que HIZO, no lo que opina. 'prendio' = volvió otro día, se "
                 "guardó algo o tiró del hilo del artista: son las semillas que "
-                "han agarrado, y de ahí conviene seguir. 'a medias' o 'sin tocar' "
+                "han agarrado, y de ahí conviene seguir. 'arraigaron' = sigue "
+                "volviendo semanas después: es lo que de verdad ha entrado en su "
+                "gusto, más fuerte que cualquier veredicto en caliente. 'a medias' o 'sin tocar' "
                 "no es un veredicto: pregúntale solo si viene a cuento. Si da su "
                 "opinión, guárdala con rate.")}

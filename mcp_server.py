@@ -1157,7 +1157,7 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
 
 
 @mcp.tool()
-def footprint(lista: str = "", dias: int = 60) -> dict:
+def footprint(lista: str = "", dias: int = 180) -> dict:
     """HUELLA: qué hizo de verdad con lo que le propusiste, sin que tenga
     que opinar. Escucha mientras trabaja y a menudo no dirá nada; esto sí.
 
@@ -1165,6 +1165,10 @@ def footprint(lista: str = "", dias: int = 60) -> dict:
     pistas distintas (entero / a medias / sin tocar), si volvió otro día,
     si se guardó alguna canción y si tiró del hilo con otras cosas del
     artista. 'prendio' marca lo que agarró: por ahí conviene seguir.
+    'arraigo' marca lo que sigue escuchando semanas después: la señal más
+    fuerte de que algo ha entrado en su gusto. Mira las listas de los
+    últimos `dias` (180 por defecto); los scrobbles se guardan en disco y
+    solo se piden los nuevos.
 
     Úsala antes de proponer algo nuevo (para no insistir en lo que no
     prendió y tirar de lo que sí) y cuando hable de cómo le fue la semana.
