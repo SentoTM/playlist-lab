@@ -178,7 +178,9 @@ def _memo(clave: str, fn):
     """Resultado de Spotify para un elemento, guardado 7 días. Lo típico es
     resolve y después create_playlist con la misma lista: sin esto se paga
     dos veces cada búsqueda. Solo se guarda lo encontrado."""
-    clave = "res:" + norm(clave)
+    # "res2": las entradas "res:" se guardaron antes de exigir que el título
+    # casara y pueden llevar la canción equivocada.
+    clave = "res2:" + norm(clave)
     hay, valor = cache.obtener(clave, DIAS_MEMO * 86400)
     if hay:
         return valor
