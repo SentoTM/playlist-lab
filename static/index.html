@@ -64,7 +64,9 @@
 <script>
 const $ = id => document.getElementById(id);
 async function api(path, opts) {
-  const r = await fetch(path, opts);
+  let r;
+  try { r = await fetch(path, opts); }
+  catch { throw new Error("No hay conexión con la web local. ¿Está abierta la ventana de setup.bat? Ábrela y recarga (F5)."); }
   if (!r.ok) { let msg = r.statusText; try { msg = (await r.json()).detail || msg; } catch {} throw new Error(msg); }
   return r.json();
 }

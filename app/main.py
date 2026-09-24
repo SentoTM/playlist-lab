@@ -74,19 +74,21 @@ def logout():
 
 @app.get("/api/status")
 def status():
-    user = None
+    user, avisos = None, []
     if sp and sp.authenticated:
         try:
             me = sp.me()
             user = {"name": me.get("display_name"), "id": me.get("id")}
         except SpotifyAuthError:
             pass
+        except Exception as e:  # noqa: BLE001 — p. ej. Spotify limitando peticiones
+            avisos.append(f"Spotify no responde ahora mismo: {e}")
     return {
         "spotify_configured": bool(CLIENT_ID),
         "spotify_user": user,
         "lastfm_enabled": lf is not None,
         "statsfm_enabled": sf is not None,
-        "warnings": ((sf.privacy_warnings() if sf else [])
+        "warnings": (avisos + (sf.privacy_warnings() if sf else [])
                      + (["Faltan permisos nuevos de Spotify ("
                          + ", ".join(sp.missing_scopes())
                          + "): pulsa 'salir' y vuelve a iniciar sesión."]

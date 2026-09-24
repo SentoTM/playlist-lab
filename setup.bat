@@ -20,6 +20,7 @@ echo Arrancando la web en http://127.0.0.1:8888 ...
 echo Solo hace falta para iniciar sesion en Spotify (una vez) y revisar tu perfil.
 echo Las playlists se crean hablando con Claude/ChatGPT (servidor MCP). Ctrl+C para parar.
 echo.
-start "" http://127.0.0.1:8888
+REM El navegador se abre a los 4 s, cuando la web ya escucha (antes se abria antes y daba "Failed to fetch")
+start "" cmd /c "timeout /t 4 >nul & start http://127.0.0.1:8888"
 uvicorn app.main:app --port 8888
 pause
