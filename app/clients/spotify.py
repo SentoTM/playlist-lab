@@ -30,7 +30,10 @@ SCOPES = " ".join([
     "playlist-read-private",
 ])
 
-TOKEN_FILE = Path(__file__).resolve().parents[2] / "token.json"
+# En el servidor (Railway) el token vive en el disco persistente: se indica
+# con SPOTIFY_TOKEN_FILE. En local, junto al proyecto como siempre.
+TOKEN_FILE = Path(os.getenv("SPOTIFY_TOKEN_FILE")
+                  or Path(__file__).resolve().parents[2] / "token.json")
 log = logging.getLogger("playlist_lab.spotify")
 MAX_ESPERA_429 = 10  # segundos; por encima, mejor avisar que quedarse colgado
 

@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
@@ -32,8 +32,11 @@ from app.clients.wikidata import WikidataClient      # noqa: E402
 from app.clients.wikipedia import WikipediaClient    # noqa: E402
 from app.text import des_escapar, norm                            # noqa: E402
 
-PORT = os.getenv("PORT", "8888")
-mcp = FastMCP("playlist-lab", host="127.0.0.1", port=8877)
+WEB_PORT = os.getenv("WEB_PORT", "8888")  # la web local de login (no confundir con PORT del servidor)
+from app import remoto  # noqa: E402
+
+mcp = FastMCP("playlist-lab", **remoto.opciones_de_seguridad())
+remoto.rutas_de_servicio(mcp)
 press = PressClient()
 mb = MusicbrainzClient()
 wiki = WikipediaClient()
@@ -47,7 +50,7 @@ CACHE_TTL = 1800  # 30 min: los tops no cambian en una conversación
 
 def _clients() -> tuple[SpotifyClient, LastfmClient | None, StatsfmClient | None]:
     sp = SpotifyClient(os.getenv("SPOTIFY_CLIENT_ID", ""),
-                       f"http://127.0.0.1:{PORT}/callback")
+                       f"http://127.0.0.1:{WEB_PORT}/callback")
     lf = (LastfmClient(os.getenv("LASTFM_API_KEY", ""),
                        os.getenv("LASTFM_USERNAME") or None)
           if os.getenv("LASTFM_API_KEY") else None)
@@ -121,7 +124,7 @@ def _require_auth(sp: SpotifyClient):
     if not sp.authenticated:
         raise RuntimeError(
             "Sin sesión de Spotify. Ejecuta setup.bat (o uvicorn app.main:app "
-            f"--port {PORT}), abre http://127.0.0.1:{PORT} y haz login una vez; "
+            f"--port {WEB_PORT}), abre http://127.0.0.1:{WEB_PORT} y haz login una vez; "
             "el token se guarda y el MCP lo reutiliza.")
 
 
@@ -1248,6 +1251,8 @@ Formato: {"antes de cada disco suenan 2-3 discos que lo influyeron" if antes els
 
 if __name__ == "__main__":
     if "--http" in sys.argv:
-        mcp.run(transport="streamable-http")
+        # En local: 127.0.0.1:8877. En Railway: HOST=0.0.0.0 y PORT lo pone él.
+        mcp.run(transport="http", host=os.getenv("HOST", "127.0.0.1"),
+                port=int(os.getenv("PORT", "8877")))
     else:
         mcp.run(transport="stdio")
