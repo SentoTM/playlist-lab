@@ -75,6 +75,13 @@ def archivar(items: list[dict]) -> int:
         return len(nuevos)
 
 
+def cargar_archivo() -> list[dict]:
+    try:
+        return json.loads(ARCHIVO.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
 def buscar_en_archivo(termino: str, limite: int = 25) -> list[dict]:
     """Qué se ha dicho de algo en la prensa que hemos ido archivando."""
     try:
@@ -88,6 +95,39 @@ def buscar_en_archivo(termino: str, limite: int = 25) -> list[dict]:
                    if aguja in _plano(i.get("title", ""))
                    or aguja in _plano(i.get("summary", ""))]
     return encontrados[:limite]
+
+
+# Verbos con los que la prensa musical abre una noticia sobre un artista:
+# "Fat Dog Announce New Album", "Wet Leg Share Video", "Heartworms Return..."
+_VERBOS = re.compile(
+    r"^(?P<nombre>.{2,60}?)\s+(announces?|shares?|returns?|releases?|unveils?|"
+    r"details?|drops?|debuts?|reveals?|premieres?|covers?|confirms?|signs?|"
+    r"teases?|are back|is back|anuncian?|estrenan?|presentan?|publican?|"
+    r"vuelven?|comparten?|adelantan?)\b", re.I)
+# "Artista – Disco", "Artista - «Canción»", "Artista: Disco", "Artista, “Disco”"
+_SEPARADOR = re.compile(r"^(?P<nombre>[^–—:\-,“\"«]{2,60}?)\s*(–|—|:|\s-\s|,\s*[“\"«])")
+
+
+def nombres_en_titulares(items: list[dict]) -> list[dict]:
+    """Posibles nombres de artista sacados de los titulares.
+
+    Es heurístico a propósito y da falsos positivos ("Review", "Premiere",
+    "Five Albums…"): quien lo use debe VALIDAR cada nombre contra una base de
+    artistas (el radar lo hace con Last.fm) antes de fiarse.
+    """
+    vistos, out = set(), []
+    for i in items:
+        titulo = (i.get("title") or "").strip()
+        m = _SEPARADOR.match(titulo) or _VERBOS.match(titulo)
+        if not m:
+            continue
+        nombre = re.sub(r"\s*\(.*?\)\s*", " ", m.group("nombre")).strip(" '\"“”«»")
+        if len(nombre) < 2 or len(nombre.split()) > 6 or nombre.lower() in vistos:
+            continue
+        vistos.add(nombre.lower())
+        out.append({"nombre": nombre, "medio": i.get("source"),
+                    "titular": titulo, "fecha": i.get("date")})
+    return out
 
 
 def tamano_archivo() -> int:

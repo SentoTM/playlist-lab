@@ -50,11 +50,22 @@ def main():
 
     datos = radar.actualizar(lf, MusicbrainzClient(), ListenbrainzClient(),
                              KexpClient(), sf, conocidos, paso)
-    tri = [c for c in datos["candidatos"] if c.get("triangulado")]
-    paso(f"hecho: {len(datos['candidatos'])} candidatos, {len(tri)} triangulados")
-    print("\nLos diez mejores:")
-    for c in datos["candidatos"][:10]:
-        print(f"  {c['puntos']:5.1f}  {c['artist']:28} {', '.join(c['fuentes'])}")
+    cands = datos["candidatos"]
+    encaja = [c for c in cands if c.get("zona", "encaja") == "encaja"]
+    fuera = [c for c in cands if c.get("zona") == "fuera"]
+    tri = [c for c in cands if c.get("triangulado")]
+    paso(f"hecho: {len(cands)} candidatos ({len(encaja)} encajan contigo, "
+         f"{len(fuera)} fuera de tu zona), {len(tri)} triangulados")
+    from collections import Counter
+    por_fuente = Counter(f for c in cands for f in c["fuentes"])
+    print("  por fuente:", dict(por_fuente))
+    print("\nLos quince mejores que encajan contigo:")
+    for c in encaja[:15]:
+        etapa = f"[{c['etapa']}]" if c.get("etapa") else ""
+        print(f"  {c['puntos']:5.1f}  {c['artist'][:28]:28} {etapa:13} {', '.join(c['fuentes'])}")
+    print("\nFuera de tu zona (para sorpresas):")
+    for c in fuera[:6]:
+        print(f"  {c['puntos']:5.1f}  {c['artist'][:28]:28} {', '.join(c.get('etiquetas') or [])[:40]}")
     for f in datos.get("fallos_ultima_pasada") or []:
         print(f"  [!] {f}")
 

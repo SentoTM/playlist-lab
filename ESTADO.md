@@ -59,6 +59,46 @@ radar. Arreglado después:
 - `new_releases` seguía tardando: ahora remite a `radar` y los trabajos en
   segundo plano responden a los 25 s en vez de a los 40.
 
+## Primera pasada real del radar (24 sep.) y arreglos
+
+Salieron 51 candidatos, pero 50 venían de KEXP: el radar era "lo que pincha
+KEXP y no conoces", y KEXP es muy ecléctico (jazz, hip-hop, un grupo coreano
+de 569 oyentes). Tres de los cuatro "pescadores" volvían vacíos:
+
+- **Sellos grandes**: el catálogo de MusicBrainz no viene por fecha y en Rough
+  Trade o Sub Pop las primeras 400 referencias son fondo antiguo. Ahora se
+  pregunta por fecha (`novedades_sello`: `laid` + rango de `date`).
+- **Prensa**: el archivo solo crecía si alguien pedía la prensa en el chat, y
+  además solo servía para confirmar. Ahora el radar la refresca y saca
+  nombres de los titulares ("X – Disco", "X Announce…"), validando cada uno
+  contra Last.fm para que no cuelen frases como "Update Factory Settings".
+- **Sin filtro de gusto**: dos listas, `encaja_contigo` y `fuera_de_tu_zona`.
+  Las etiquetas deciden el gusto; las fuentes, cuánto vale la apuesta (un
+  sello que sigues avala calidad, no gusto: Partisan también saca jazz). Lo
+  de fuera con aval de varias fuentes queda marcado como sorpresa.
+- Veteranos penalizados, colaboraciones medidas por su artista principal,
+  mínimo de oyentes y etiquetas seguidas "crank wave", "post-brexit new wave"
+  y "egg punk".
+
+Para verlo: `radar.bat` ejecuta el código nuevo directamente, sin reiniciar
+Claude Desktop.
+
+## Despliegue: opciones estudiadas (sin decidir)
+
+- No hace falta APK: las apps de Claude y ChatGPT usan conectores remotos en
+  el móvil una vez añadidos en la web.
+- **Vercel**: posible pero encaja mal. Funciones cortas (el radar tarda ~2
+  min) y sin disco para notas y caché: habría que rehacer el almacenamiento.
+- **Contenedor con disco permanente** (Railway, Render, Fly.io) o servidor
+  propio (Hetzner): lo que mejor encaja, casi sin cambios de código,
+  0-7 €/mes. Railway/Render despliegan solos en cada push.
+- **Seguridad**: OAuth en el servidor MCP, entrando con su cuenta de GitHub y
+  aceptando solo su usuario. Claude y ChatGPT soportan ese flujo en los
+  conectores. Una URL secreta es más simple pero, si se filtra, cualquiera
+  toca su Spotify: descartado.
+- Cambios necesarios: redirect URI de Spotify a la URL pública, token y
+  `datos/` en el disco persistente, radar con cron del propio servidor.
+
 ## Para arrancar la próxima sesión
 
 1. Reiniciar Claude Desktop: nada de lo del 23 sep. está cargado todavía.

@@ -23,7 +23,8 @@ INICIAL = {
     # Etiquetas que el radar recorre además de los géneros que salen de tu
     # historial (que vienen casi todos en inglés y dejaban corto el
     # castellano). Nombres de etiqueta tal como se usan en Last.fm.
-    "etiquetas": ["spanish indie", "indie español", "rock en español",
+    "etiquetas": ["crank wave", "post-brexit new wave", "egg punk",
+                  "spanish indie", "indie español", "rock en español",
                   "spanish punk", "latin indie"],
     "nota": ("Sellos, artistas y etiquetas que el radar vigila. Añade o "
              "quita con follow/unfollow o editando este fichero."),

@@ -206,6 +206,37 @@ class MusicbrainzClient:
         return {"sello": sello, "publicaciones": salida[:limit],
                 "total_en_catalogo": len(salida)}
 
+    def novedades_sello(self, nombre: str, desde: str, limit: int = 60) -> dict:
+        """Lo que ha publicado un sello DESDE una fecha.
+
+        El catálogo completo (catalogo_sello) no viene ordenado por fecha, y en
+        sellos grandes —Rough Trade, Sub Pop, Partisan, con miles de
+        referencias— las primeras páginas son todo fondo antiguo: lo reciente
+        nunca llegaba. Aquí se pregunta directamente por fecha con la
+        búsqueda (laid = id del sello, date = rango), que sí lo permite.
+        """
+        sello = self.buscar_sello(nombre)
+        if not sello:
+            return {"error": f"No encuentro el sello '{nombre}' en MusicBrainz"}
+        data = self._get("/release",
+                         query=f'laid:{sello["mbid"]} AND date:[{desde} TO *]',
+                         limit=min(limit, 100))
+        vistos, salida = set(), []
+        for r in data.get("releases", []):
+            artista = ", ".join(
+                (c.get("name") or (c.get("artist") or {}).get("name") or "")
+                for c in (r.get("artist-credit") or []) if isinstance(c, dict))
+            titulo = r.get("title") or ""
+            fecha = r.get("date") or ""
+            clave = (artista.lower(), titulo.lower())
+            if not artista or clave in vistos or fecha < desde:
+                continue
+            vistos.add(clave)
+            salida.append({"artist": artista, "album": titulo, "fecha": fecha,
+                           "tipo": (r.get("release-group") or {}).get("primary-type")})
+        salida.sort(key=lambda r: r["fecha"], reverse=True)
+        return {"sello": sello, "publicaciones": salida}
+
     def sellos_de(self, artist: str, album: str = "") -> list[str]:
         """Con qué sellos ha publicado un artista: la puerta de entrada a una
         escena, porque los sellos agrupan por afinidad, no por algoritmo."""

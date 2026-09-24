@@ -545,10 +545,13 @@ def radar(solo_triangulados: bool = False, limite: int = 25) -> dict:
 
     Una lista viva de candidatos que el usuario no conoce, recogida de
     fuentes independientes (qué apuesta KEXP, qué publican los sellos que
-    sigue, ListenBrainz, el fondo de las etiquetas de su gusto) y validada
-    con su audiencia y la prensa. Cada uno trae sus `senales` y `fuentes`:
-    `triangulado` significa que aparece en dos o más fuentes independientes,
-    que es la mejor apuesta. La recurrencia entre pasadas también suma.
+    sigue, de quién habla la prensa, ListenBrainz, el fondo de las etiquetas
+    de su gusto) y validada con su audiencia. Viene en dos listas:
+    `encaja_contigo` (géneros afines, sello que sigue o triangulado) y
+    `fuera_de_tu_zona` (buena cantera para la casilla de "sorpresa").
+    Cada candidato trae `senales`, `fuentes` y `etapa`: `triangulado` = dos
+    o más fuentes independientes, la mejor apuesta; los veteranos van
+    penalizados porque un disco suyo es novedad, no descubrimiento.
 
     Incluye `de_los_que_sigues`: novedades de los artistas que sigue.
     Es una lectura instantánea; si `actualizado` es viejo (más de una
@@ -577,7 +580,9 @@ def radar_update() -> dict:
                 "candidatos": len(datos["candidatos"]),
                 "triangulados": sum(1 for c in datos["candidatos"] if c.get("triangulado")),
                 "mejores": [{"artist": c["artist"], "puntos": c["puntos"],
-                             "fuentes": c["fuentes"]} for c in datos["candidatos"][:10]],
+                             "zona": c.get("zona"), "fuentes": c["fuentes"]}
+                            for c in datos["candidatos"] if c.get("zona") == "encaja"][:10],
+                "fuera_de_zona": sum(1 for c in datos["candidatos"] if c.get("zona") == "fuera"),
                 "fallos": datos.get("fallos_ultima_pasada") or None}
 
     return jobs.run_or_wait(f"radar_update:{dt_hoy()}", calcular)

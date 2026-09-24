@@ -15,6 +15,7 @@ Solo fuentes gratuitas; ni una petición a Spotify.
 """
 import datetime as dt
 import json
+import re
 import logging
 import os
 import threading
@@ -30,6 +31,7 @@ from .clients.listenbrainz import ListenbrainzClient
 from .clients.musicbrainz import MusicbrainzClient
 from .clients.statsfm import StatsfmClient
 from .text import norm
+from .vet import etapa
 
 log = logging.getLogger("playlist_lab.radar")
 ARCHIVO = Path(__file__).resolve().parents[1] / "datos" / "radar.json"
@@ -49,8 +51,14 @@ BONUS_POR_FUENTE_EXTRA = 3.0  # triangulación: cada fuente independiente de má
 # KEXP son la misma emisora opinando dos veces, no dos opiniones.
 ORIGEN = {"sesion_kexp": "kexp"}
 BONUS_RECURRENCIA = 1.5       # visto en varias pasadas del radar
-BONUS_AFINIDAD = 1.5          # sus etiquetas casan con los géneros del usuario
+BONUS_AFINIDAD = 3.0          # sus etiquetas casan con los géneros del usuario
 MASIVO = 1_000_000            # por encima no es un descubrimiento
+MIN_OYENTES = 300             # por debajo, o no existe o es un nombre mal cogido
+PENALIZA_VETERANO = 4.0       # un disco nuevo de un veterano es novedad, no descubrimiento
+DIAS_PRENSA = 60
+# Separadores de colaboraciones: "Erykah Badu & The Alchemist" son dos
+# artistas enormes, no un grupo pequeño de 4.500 oyentes.
+_COLAB = re.compile(r"\s+(?:&|x|×|feat\.?|ft\.?|with|y)\s+|,\s*", re.I)
 DIAS_NOVEDAD = 120
 
 
@@ -139,7 +147,7 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
     for sello in seg["sellos"]:
         paso(f"sellos: mirando {sello}")
         try:
-            cat = mb.catalogo_sello(sello, desde=desde, limit=15)
+            cat = mb.novedades_sello(sello, desde, 40)
             for pub in cat.get("publicaciones", []) if isinstance(cat, dict) else []:
                 cand.add(pub["artist"], "sello_seguido", PESO["sello_seguido"],
                          f"nuevo en {sello}: «{pub['album']}» ({pub['fecha']})",
@@ -147,7 +155,21 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
         except Exception as e:  # noqa: BLE001
             fallos.append(f"sello {sello}: {e}")
 
-    # 3) ListenBrainz: lanzamientos recientes con algo de público
+    # 3) Prensa: primero se refresca (antes el archivo solo crecía si alguien
+    # pedía la prensa en el chat) y luego se sacan nombres de los titulares.
+    # Un editor que reseña o da una noticia de un grupo es un aval humano.
+    paso("prensa: refrescando los feeds y leyendo titulares")
+    try:
+        press.PressClient().fetch(limit_per_source=20, since_days=DIAS_PRENSA)
+    except Exception as e:  # noqa: BLE001
+        fallos.append(f"prensa (refresco): {e}")
+    limite_prensa = (dt.date.today() - dt.timedelta(days=DIAS_PRENSA)).isoformat()
+    recientes = [i for i in press.cargar_archivo() if (i.get("date") or "") >= limite_prensa]
+    for n in press.nombres_en_titulares(recientes):
+        cand.add(n["nombre"], "prensa", PESO["prensa"],
+                 f"en {n['medio']}: «{n['titular'][:70]}»")
+
+    # 4) ListenBrainz: lanzamientos recientes con algo de público
     paso("ListenBrainz: novedades con público")
     try:
         for r in lb.novedades(21, 120, min_escuchas=10):
@@ -157,7 +179,7 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
     except Exception as e:  # noqa: BLE001
         fallos.append(f"ListenBrainz: {e}")
 
-    # 4) El fondo de las etiquetas de su gusto (donde no llegan los grandes),
+    # 5) El fondo de las etiquetas de su gusto (donde no llegan los grandes),
     # más las que sigue a propósito (castellano incluido)
     generos = _generos_del_usuario(sf)
     extra = [e for e in seg.get("etiquetas", []) if e.lower() not in generos]
@@ -171,11 +193,16 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
         except Exception as e:  # noqa: BLE001
             fallos.append(f"etiqueta {g}: {e}")
 
-    # Fuera lo que ya conoce (y lo que vetó)
-    vivos = {k: c for k, c in cand.d.items() if k not in conocidos}
+    # Fuera lo que ya conoce (y lo que vetó), mirando cada parte de una colaboración
+    def conocido(nombre: str) -> bool:
+        partes = [p for p in _COLAB.split(nombre) if p and p.strip()]
+        return any(norm(p) in conocidos for p in [nombre] + partes)
 
-    # Una sola fuente débil (ListenBrainz global, etiqueta) no basta para entrar
-    fuertes = {"kexp", "sesion_kexp", "sello_seguido"}
+    vivos = {k: c for k, c in cand.d.items() if not conocido(c["artist"])}
+
+    # Una sola fuente débil (ListenBrainz global, etiqueta) no basta para entrar;
+    # una radio, un sello o un editor de prensa sí, porque son criterio humano
+    fuertes = {"kexp", "sesion_kexp", "sello_seguido", "prensa"}
     preseleccion = sorted(
         (c for c in vivos.values() if c["fuentes"] & fuertes or len(c["fuentes"]) >= 2),
         key=lambda c: c["puntos"], reverse=True)[:60]
@@ -184,14 +211,24 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
     paso(f"comprobando {len(preseleccion)} candidatos (audiencia y prensa)")
 
     def enriquecer(c: dict) -> dict:
+        # Una colaboración se mide por su artista principal
+        principal = next((p for p in _COLAB.split(c["artist"]) if p and p.strip()),
+                         c["artist"]).strip()
+        c["colaboracion"] = principal != c["artist"]
         try:
-            info = lf.artist_info(c["artist"]) or {}
+            info = lf.artist_info(principal) or {}
         except Exception:  # noqa: BLE001
             info = {}
+        # Validación: que Last.fm conozca a ese artista con ese nombre. Así se
+        # caen los nombres mal sacados de un titular ("Update Factory Settings")
+        devuelto = info.get("artist") or ""
+        c["valido"] = bool(devuelto) and (
+            norm(devuelto) == norm(principal)
+            or norm(principal) in norm(devuelto) or norm(devuelto) in norm(principal))
         c["oyentes"] = info.get("listeners") or 0
         c["escuchas_por_oyente"] = info.get("escuchas_por_oyente") or 0
         c["etiquetas"] = (info.get("tags") or [])[:5]
-        menciones = press.buscar_en_archivo(c["artist"], 5)
+        menciones = [] if "prensa" in c["fuentes"] else press.buscar_en_archivo(c["artist"], 5)
         if menciones:
             c["fuentes"].add("prensa")
             c["puntos"] += PESO["prensa"]
@@ -199,6 +236,7 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
                 f"en la prensa: {menciones[0].get('source')} "
                 f"(«{(menciones[0].get('title') or '')[:60]}»)")
         comunes = {t.lower() for t in c["etiquetas"]} & (set(generos) | {e.lower() for e in extra})
+        c["afinidad"] = sorted(comunes)
         if comunes:
             c["puntos"] += BONUS_AFINIDAD
             c["senales"].append(f"encaja con tus géneros ({', '.join(sorted(comunes))})")
@@ -209,15 +247,51 @@ def recorrer(lf: LastfmClient, mb: MusicbrainzClient, lb: ListenbrainzClient,
 
     resultado = []
     for c in enriquecidos:
-        if c["oyentes"] > MASIVO:
+        if not c.get("valido") or c["oyentes"] < MIN_OYENTES or c["oyentes"] > MASIVO:
             continue
         origenes = {ORIGEN.get(f, f) for f in c["fuentes"]}
         c["puntos"] += max(0, len(origenes) - 1) * BONUS_POR_FUENTE_EXTRA
         c["fuentes"] = sorted(c["fuentes"])
         c["origenes_independientes"] = len(origenes)
         c["triangulado"] = len(origenes) >= 2
+        # Dos listas: lo que encaja con su gusto y lo que no, que no se tira
+        # (sirve para la casilla de "sorpresa" del menú). KEXP es una radio
+        # muy ecléctica: sin este corte, el jazz de Londres competía de tú a
+        # tú con el post-punk.
+        # Reparto de papeles: las ETIQUETAS dicen si encaja con su gusto; las
+        # FUENTES dicen cuánto vale la apuesta. Un sello que sigue avala
+        # calidad, no gusto (Partisan publica post-punk y también jazz). Solo
+        # cuando no hay etiquetas que mirar se fía de sello o triangulación.
+        if c.get("afinidad"):
+            encaja = True
+        elif c.get("etiquetas"):
+            encaja = False
+        else:
+            encaja = "sello_seguido" in c["fuentes"] or c["triangulado"]
+        c["zona"] = "encaja" if encaja else "fuera"
+        if not encaja and c["triangulado"]:
+            c["senales"].append("fuera de tu zona, pero con aval de varias fuentes: "
+                                "buena candidata a sorpresa")
         c["puntos"] = round(c["puntos"], 1)
         resultado.append(c)
+
+    # Trayectoria, solo para los que encajan y van arriba (MusicBrainz: 1 petición/s)
+    arriba = sorted((c for c in resultado if c["zona"] == "encaja"),
+                    key=lambda c: c["puntos"], reverse=True)[:25]
+    paso(f"comprobando la trayectoria de {len(arriba)} candidatos")
+    for c in arriba:
+        try:
+            ficha = mb.find_artist(c["artist"]) or {}
+        except Exception:  # noqa: BLE001
+            ficha = {}
+        c["activo_desde"] = ficha.get("activo_desde")
+        c["etapa"] = etapa(ficha.get("activo_desde"))
+        if c["etapa"] == "veterano":
+            c["puntos"] = round(c["puntos"] - PENALIZA_VETERANO, 1)
+            c["senales"].append(f"veterano (desde {c['activo_desde'][:4]}): novedad, "
+                                "no descubrimiento")
+        elif c["etapa"] == "emergente":
+            c["senales"].append(f"emergente de verdad (desde {c['activo_desde'][:4]})")
 
     # Novedades de los artistas que sigue (esos sí los conoce: van aparte)
     de_los_tuyos = []
@@ -267,13 +341,20 @@ def actualizar(lf, mb, lb, kexp, sf, conocidos, paso=lambda _t: None) -> dict:
 
 
 def leer(conocidos: dict, solo_triangulados: bool = False, limite: int = 25) -> dict:
-    """Lo que hay en el radar ahora, quitando lo que haya conocido después."""
+    """Lo que hay en el radar ahora, quitando lo que haya conocido después.
+
+    Separa lo que encaja con su gusto de lo que queda fuera de su zona (útil
+    para la casilla de "sorpresa").
+    """
     datos = cargar()
     lista = [c for c in datos.get("candidatos", [])
              if norm(c["artist"]) not in conocidos
              and (c.get("triangulado") or not solo_triangulados)]
+    encaja = [c for c in lista if c.get("zona", "encaja") == "encaja"]
+    fuera = [c for c in lista if c.get("zona") == "fuera"]
     return {"actualizado": datos.get("actualizado"),
-            "candidatos": lista[:limite],
+            "encaja_contigo": encaja[:limite],
+            "fuera_de_tu_zona": fuera[:max(5, limite // 3)],
             "total_en_radar": len(lista),
             "de_los_que_sigues": datos.get("de_los_que_sigues", []),
             "fallos_ultima_pasada": datos.get("fallos_ultima_pasada") or None}
