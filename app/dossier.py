@@ -75,6 +75,13 @@ def construir(artist: str, lf: LastfmClient, mb: MusicbrainzClient,
         senales.append("publica con " + ", ".join(sellos[:3]))
 
     relacion = conocidos.get(clave)
+    if not relacion and lf.username:
+        # Los tops solo recogen a los más escuchados: alguien que escuchas
+        # ahora mismo por primera vez no está ahí (pasó con Aiko el grupo,
+        # que sonaba mientras el dossier decía "no lo conoces").
+        plays = _seguro(lf.user_artist_playcount, artist) or 0
+        if plays:
+            relacion = {"lastfm_plays": plays}
     opinion = opiniones.get(artist) or opiniones.get(clave)
     if opinion:
         senales.insert(0, f"YA OPINASTE: {opinion.get('veredicto')}")

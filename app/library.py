@@ -52,6 +52,12 @@ def find_track(sp: SpotifyClient, artist: str, title: str) -> dict | None:
     results = sp.search_track(f'track:"{title}" artist:"{artist}"', limit=5) \
         or sp.search_track(f"{title} {artist}", limit=5)
     good = [t for t in results if _artist_matches(t, artist)]
+    # Y el título también: la búsqueda laxa devolvía otra canción del mismo
+    # grupo ("Hoy es mi día" → "Soy una punk") y se colaba sin avisar.
+    buscado = _plano(norm(title))
+    good = [t for t in good
+            if (lambda n: n == buscado or n.startswith(buscado) or buscado.startswith(n))
+            (_plano(norm(t.get("name", ""))))]
     if not good:
         return None
     good.sort(key=lambda t: (("live" in norm(t.get("name", ""))

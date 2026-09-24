@@ -173,4 +173,20 @@ def known_artists(sf: StatsfmClient | None, lf: LastfmClient | None,
     if sf:
         for a in sf.top_artists("lifetime", 300):
             entry(a["name"])["statsfm_streams"] = a["streams"]
+    # Lo reciente: quien has descubierto estas semanas aún no está en los
+    # tops de siempre, pero ya lo conoces.
+    if lf and lf.username:
+        try:
+            for a in lf.user_top_artists("1month", 200):
+                e = entry(a["name"])
+                e["lastfm_plays"] = max(e.get("lastfm_plays") or 0, a["playcount"])
+        except Exception:  # noqa: BLE001
+            pass
+    if sf:
+        try:
+            for a in sf.top_artists("weeks", 100):
+                e = entry(a["name"])
+                e["statsfm_streams"] = max(e.get("statsfm_streams") or 0, a["streams"])
+        except Exception:  # noqa: BLE001
+            pass
     return known
