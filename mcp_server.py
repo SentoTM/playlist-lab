@@ -18,7 +18,7 @@ from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (cache, discovery, dossier, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
+from app import (cache, discovery, dossier, editar as editar_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
@@ -487,6 +487,9 @@ def verify(artist: str, album: str = "", discography: bool = False) -> dict:
 # ---------- cómo quiere que le propongan ----------
 
 METODO = """\
+IDIOMA: habla SIEMPRE en castellano, también en los mensajes intermedios
+mientras usas herramientas ("Voy a comprobar…", no "Let me check…").
+
 CÓMO USAR LAS HERRAMIENTAS AL PROPONER (aprendido de la primera semana real)
 
 Tu propio conocimiento es la mejor fuente para los CLÁSICOS y la HISTORIA: ahí
@@ -520,6 +523,9 @@ y en esos no son opcionales:
 Economía: nada de lo anterior gasta cuota de Spotify salvo resolve y
 create_playlist. listening_history y taste_profile salen de stats.fm.
 Spotify no permite crear carpetas por la API: dilo antes de empezar.
+Para RETOCAR una lista ya creada usa edit_playlist (nunca una lista nueva
+duplicada); para borrarla, delete_playlist con confirmación. Si la lista
+es para otra persona, create_playlist(para="nombre").
 Al crear, los discos quedan apuntados como "pendiente" en sus notas.
 Cuando opine de varios a la vez, guárdalo con rate en una sola llamada.
 Antes de una tanda nueva, mira footprint: qué prendió de lo anterior
@@ -1120,8 +1126,13 @@ def resolve(tracks: list[str] = [], albums: list[str] = [],
 def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
                     items: list[str] = [],
                     description: str = "Curada con Playlist Lab",
-                    public: bool = False) -> dict:
+                    public: bool = False, para: str = "") -> dict:
     """Crea la playlist en Spotify.
+
+    `para`: si la lista es PARA OTRA PERSONA (su novia, un amigo…), pon su
+    nombre. Así no se apuntan esos discos como pendientes suyos ni entran
+    en su historial ni en su huella. Recuérdale que lo que escuche de esa
+    lista en su cuenta sí acabará en sus estadísticas.
 
     Igual que resolve: `items` para un orden exacto que mezcle discos
     ("album: Artista – Álbum") y canciones ("Artista – Canción"), o
@@ -1143,6 +1154,17 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
         return {"error": "Nada que añadir: no se resolvió ningún elemento",
                 "unresolved": res["unresolved"]}
     created = library.create_playlist(sp, name, description, res["uris"], public)
+
+    if para:
+        return {"created": created, "total_minutes": res["total_minutes"],
+                "para": para,
+                "resolved": [r["input"] for r in res["resolved"]],
+                "avisos": [f"{r['input']}: {r['aviso']}" for r in res["resolved"]
+                           if r.get("aviso")] or None,
+                "unresolved": res["unresolved"],
+                "nota": (f"Lista para {para}: no se ha apuntado nada en sus notas, "
+                         "historial ni huella. Si la escucha él desde su cuenta, "
+                         "esas escuchas sí irán a su stats.fm y Last.fm.")}
 
     apuntados = 0
     ya = notes.cargar()["albumes"]
@@ -1168,6 +1190,53 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
             "apuntados_como_pendiente": apuntados,
             "huella": ("Registrada: footprint seguirá qué escucha de esta lista "
                        "(también las canciones sueltas), no hace falta apuntar nada.")}
+
+
+@mcp.tool()
+def edit_playlist(playlist: str, add: list[str] = [], remove: list[str] = [],
+                  after: str = "", at_start: bool = False,
+                  rename: str = "", description: str = "") -> dict:
+    """Retoca una lista SUYA ya creada, sin crear otra nueva.
+
+    - `playlist`: id, enlace o nombre (vale parcial si es único).
+    - `add`: como en create_playlist: "album: Artista – Álbum" o
+      "Artista – Canción". Por defecto al final; con `after` detrás del
+      último tema que case (p. ej. after="The Sugarcubes" o
+      after="album: Björk – Homogenic"); con at_start=True, al principio.
+    - `remove`: "album: Artista – Álbum" quita el disco entero, "Artista –
+      Canción" una canción, "Artista" todo lo suyo.
+    - `rename` / `description`: nuevo nombre o descripción.
+
+    Úsalo SIEMPRE para retocar en vez de crear una lista duplicada. Resuelve
+    lo nuevo con la misma lógica que resolve (edición original, avisos de
+    duración): si algo no se resuelve, dilo.
+    """
+    sp, _, _ = _clients()
+    _require_auth(sp)
+    rename, description = des_escapar(rename), des_escapar(description)
+    res = editar_mod.editar(sp, playlist, add, remove, after, at_start, rename, description)
+    viejo = res["playlist"] if not rename else None
+    huella_mod.lista_editada(res["id"], viejo or "", rename, res.pop("resueltos"),
+                             res.get("quitadas") or [])
+    return res
+
+
+@mcp.tool()
+def delete_playlist(playlist: str, confirmar: bool = False) -> dict:
+    """Borra una lista SUYA (en Spotify, 'borrar' es dejar de seguirla: se
+    puede recuperar desde spotify.com → Cuenta → Recuperar playlists).
+
+    Primero llama SIN confirmar: devuelve qué lista es y cuántas canciones
+    tiene. Pregúntale y solo si dice que sí, llama otra vez con
+    confirmar=True y el id que te devolvió. Deja de contar en la huella.
+    """
+    sp, _, _ = _clients()
+    _require_auth(sp)
+    res = editar_mod.borrar(sp, playlist, confirmar)
+    if res.get("borrada"):
+        huella_mod.lista_borrada(res["id"], res["playlist"])
+        cache.olvidar(f"huella::180")
+    return res
 
 
 @mcp.tool()

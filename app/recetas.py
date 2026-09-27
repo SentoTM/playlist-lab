@@ -144,7 +144,8 @@ RECETAS = {
         "cuando": "Influencias antes de cada disco o herederos después.",
         "piensa": "Influencias concretas de cada disco (entrevistas, reseñas) y el rasgo que pasa.",
         "hazlo": ["Prompt 'genealogia': influence_evidence → propón → check_lineage."],
-        "cuidado": ["Similitud no es influencia.", "Las influencias 'de manual' "
+        "cuidado": ["Similitud no es influencia, y un contemporáneo no es un heredero: "
+                    "comprueba fechas con check_lineage.", "Las influencias 'de manual' "
                     "(Velvet, Stooges…) valen si son de verdad; busca también las menos citadas."],
     },
     "arbol_de_musicos": {
@@ -192,7 +193,14 @@ RECETAS = {
         "cuando": "Voy a ver a X; un festival.",
         "piensa": "Qué llevarse aprendido; en un cartel, a quién no perderse.",
         "hazlo": ["Cartel entero por vet_candidates: prioriza lo que no conoce y encaja."],
-        "cuidado": ["No inventes setlists."],
+        "cuidado": ["No inventes setlists: si la gira es nueva, dilo y apóyate en la anterior.",
+                    "Herederos no es lo mismo que contemporáneos: un heredero empezó "
+                    "DESPUÉS de su auge y los cita. Compruébalo con check_lineage "
+                    "(fechas) antes de llamarlo así.",
+                    "Influencias: además de las de manual, al menos una documentada y "
+                    "poco obvia (influence_evidence).",
+                    "Puedes intercalar raíces y herederos dentro del arco del setlist "
+                    "(como un DJ antes y después de cada bloque) en vez de en bloques."],
     },
 
     # ---------------- MEMORIA ----------------

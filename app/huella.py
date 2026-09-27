@@ -61,6 +61,54 @@ def registrar_lista(nombre: str, resueltos: list[dict], url: str = "") -> None:
                         encoding="utf-8")
 
 
+def _guardar_listas(datos: dict) -> None:
+    RUTA.parent.mkdir(exist_ok=True)
+    RUTA.write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def _clave_por_id(datos: dict, pid: str, nombre: str) -> str | None:
+    for k, v in datos.items():
+        if pid and pid in (v.get("url") or ""):
+            return k
+    return nombre if nombre in datos else None
+
+
+def lista_editada(pid: str, nombre_viejo: str, nombre_nuevo: str,
+                  resueltos: list[dict], quitadas: list[str]) -> None:
+    """Mantiene la huella al día cuando se retoca una lista."""
+    with _lock:
+        datos = cargar_listas()
+        clave = _clave_por_id(datos, pid, nombre_viejo)
+        if not clave:
+            return
+        entrada = datos.pop(clave)
+        registrar_tmp = {"elementos": []}
+        for r in resueltos:
+            if r.get("type") == "album":
+                registrar_tmp["elementos"].append(
+                    {"tipo": "album", "artista": r.get("artist"),
+                     "album": r.get("album"), "pistas": r.get("n_tracks")})
+            else:
+                registrar_tmp["elementos"].append(
+                    {"tipo": "cancion", "artista": r.get("artist"),
+                     "cancion": r.get("title"), "album": r.get("album")})
+        entrada["elementos"] = entrada.get("elementos", []) + registrar_tmp["elementos"]
+        datos[des_escapar(nombre_nuevo or clave)] = entrada
+        _guardar_listas(datos)
+
+
+def lista_borrada(pid: str, nombre: str) -> None:
+    """Las listas borradas dejan de contar en la huella."""
+    with _lock:
+        datos = cargar_listas()
+        clave = _clave_por_id(datos, pid, nombre)
+        if clave:
+            datos[clave]["borrada"] = True
+        else:  # listas antiguas reconstruidas de las notas: se marca igual
+            datos[nombre] = {"fecha": None, "elementos": [], "borrada": True}
+        _guardar_listas(datos)
+
+
 def _todas() -> dict:
     """Listas registradas + las anteriores a este registro, reconstruidas
     de las notas (discos) y del historial (artistas de listas de canciones)."""
@@ -242,7 +290,7 @@ def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
 
 
 def huella(lf, sp=None, lista: str = "", dias: int = 180) -> dict:
-    listas = _todas()
+    listas = {k: v for k, v in _todas().items() if not v.get("borrada")}
     if lista:
         elegidas = {k: v for k, v in listas.items() if norm(lista) in norm(k)}
         if not elegidas:

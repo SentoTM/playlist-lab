@@ -521,6 +521,35 @@ class SpotifyClient:
     def search_artist(self, query: str, limit: int = 3) -> list[dict]:
         return self._search_paged(query, "artist", limit)
 
+    def playlist_info(self, playlist_id: str) -> dict:
+        """Nombre, dueño y descripción de una playlist."""
+        return self._get(f"/playlists/{playlist_id}",
+                         fields="id,name,description,owner(id),external_urls")
+
+    def replace_playlist_items(self, playlist_id: str, uris: list[str]) -> None:
+        """Deja la playlist exactamente con estas canciones y en este orden.
+
+        Editar a base de reescribir la lista entera (PUT con las 100 primeras
+        y POST con el resto) evita depender del formato del DELETE de
+        canciones sueltas, que Spotify ha cambiado más de una vez.
+        """
+        self._request("PUT", f"/playlists/{playlist_id}/items",
+                      json={"uris": uris[:100]})
+        for i in range(100, len(uris), 100):
+            self._request("POST", f"/playlists/{playlist_id}/items",
+                          json={"uris": uris[i:i + 100]})
+
+    def update_playlist_details(self, playlist_id: str, name: str | None = None,
+                                description: str | None = None) -> None:
+        cuerpo = {k: v for k, v in (("name", name), ("description", description)) if v}
+        if cuerpo:
+            self._request("PUT", f"/playlists/{playlist_id}", json=cuerpo)
+
+    def unfollow_playlist(self, playlist_id: str) -> None:
+        """'Borrar' en Spotify es dejar de seguirla: sale de tu biblioteca y
+        se puede recuperar desde la web (spotify.com → Recuperar playlists)."""
+        self._request("DELETE", f"/playlists/{playlist_id}/followers")
+
     def create_playlist(self, name: str, description: str, uris: list[str],
                         public: bool = False) -> dict:
         """Crea la playlist y la llena, en tandas de 100 (tope de la API).
