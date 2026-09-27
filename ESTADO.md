@@ -224,3 +224,35 @@ sistema planta semillas y mira cuáles prenden.
    explorar, construido solo a partir de historial + huella + opiniones.
 4. Opinión rápida: veredicto + "sensación" libre en /semana; el modelo la
    traduce a vocabulario (glosario personal).
+
+## Pendiente tras las primeras semanas de uso real (27 sep. 2026)
+
+Por orden de prioridad:
+
+1. **Editar y borrar listas.** Añadir o quitar canciones, reordenar,
+   renombrar, y "eliminar" (dejar de seguir) pidiendo confirmación. Hoy
+   cualquier retoque crea una lista duplicada (pasó con Mogwai en la de
+   Laxness).
+2. **Listas para otras personas** (amigo alemán, novia): un parámetro `para`
+   en create_playlist, para que esas listas no apunten discos como
+   pendientes suyos ni entren en el historial ni en la huella. Avisar de
+   que sus escuchas acabarán en stats.fm y Last.fm.
+3. **Aviso de duración más fino.** El umbral fijo de 70 min dio falsa
+   alarma con ( ) de Sigur Rós, que dura 72 min en el original. Comparar con
+   la duración o el número de pistas del original en MusicBrainz. Si solo
+   existe una reedición inflada (The Nectarine No.9, 82 min), meter las
+   pistas del original como canciones en vez de descartar el disco.
+4. **Falsos "no está en Spotify".** Revisar con nombres que llevan signos
+   (Godspeed You! Black Emperor, *Lift Your Skinny Fists…*), que puede ser
+   un fallo del resolver.
+5. **Genealogía y conciertos.** Distinguir herederos de contemporáneos
+   (check_lineage con fechas) y pedir al menos una influencia documentada
+   poco obvia (influence_evidence). Opción de intercalar raíces y herederos
+   dentro del arco del setlist.
+6. **Setlists reales**: herramienta con la API gratuita de setlist.fm.
+7. **Castellano siempre**, también en los mensajes intermedios.
+8. **Huella**: que ignore las listas que ha borrado.
+9. **Railway**: reconectar el repo (Settings → Source) para que cada push
+   se despliegue solo. Hoy hay que lanzar "Deploy latest commit" con Ctrl+K.
+10. Del plan anterior: semillas, mapa, opinión rápida y lista automática de
+    los domingos.
