@@ -69,7 +69,7 @@ def _casa(fila: dict, patron: str) -> bool:
 
 def editar(sp: SpotifyClient, lista: str, anadir: list[str], quitar: list[str],
            despues_de: str = "", al_principio: bool = False,
-           nombre: str = "", descripcion: str = "") -> dict:
+           nombre: str = "", descripcion: str = "", resolver=None) -> dict:
     info = localizar(sp, lista)
     pid = info["id"]
     actuales = [_fila(t) for t in sp.playlist_tracks(pid, 1000)]
@@ -85,7 +85,7 @@ def editar(sp: SpotifyClient, lista: str, anadir: list[str], quitar: list[str],
 
     nuevas, no_resueltas, resueltos = [], [], []
     if anadir:
-        res = library.resolve_ordered(sp, anadir)
+        res = resolver(anadir) if resolver else library.resolve_ordered(sp, anadir)
         no_resueltas = res["unresolved"]
         resueltos = res["resolved"]
         nuevas = [{"uri": u} for u in res["uris"]]
@@ -115,7 +115,8 @@ def editar(sp: SpotifyClient, lista: str, anadir: list[str], quitar: list[str],
         "no_encontradas_para_quitar": sin_casar or None,
         "anadidas": [r["input"] for r in resueltos] or None,
         "no_resueltas": no_resueltas or None,
-        "renombrada": bool(nombre), "resueltos": resueltos,
+        "renombrada": bool(nombre),
+        "resueltos": library.limpiar({"resolved": resueltos})["resolved"],
     }
 
 

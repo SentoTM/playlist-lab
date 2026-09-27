@@ -85,3 +85,19 @@ def revisar(resueltos: list[dict]) -> dict:
                           "revisa si no lo buscabas")
     return {"ya_propuestos": ya or None, "decadas": dict(sorted(decadas.items())),
             "avisos": avisos or None}
+
+
+def quitar_lista(nombre: str) -> int:
+    """Saca una lista del historial (p. ej. si era para otra persona)."""
+    with _lock:
+        datos = cargar()
+        tocados = 0
+        for clave in list(datos):
+            antes = len(datos[clave]["listas"])
+            datos[clave]["listas"] = [l for l in datos[clave]["listas"] if l["nombre"] != nombre]
+            if len(datos[clave]["listas"]) != antes:
+                tocados += 1
+            if not datos[clave]["listas"]:
+                del datos[clave]
+        RUTA.write_text(json.dumps(datos, ensure_ascii=False, indent=1), encoding="utf-8")
+    return tocados

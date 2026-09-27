@@ -154,6 +154,8 @@ def album_details(sp: SpotifyClient, album_id: str) -> dict:
         "minutes": round(sum(t.get("duration_ms", 0) for t in tracks) / 60000),
         "tracks": [t.get("name") for t in tracks],
         "uris": [t.get("uri") for t in tracks if t.get("uri")],
+        "pistas": [{"nombre": t.get("name"), "uri": t.get("uri"),
+                    "ms": t.get("duration_ms", 0)} for t in tracks if t.get("uri")],
         "id": full.get("id"),
         "url": (full.get("external_urls") or {}).get("spotify"),
     }
@@ -180,7 +182,7 @@ def _memo(clave: str, fn):
     dos veces cada búsqueda. Solo se guarda lo encontrado."""
     # "res2": las entradas "res:" se guardaron antes de exigir que el título
     # casara y pueden llevar la canción equivocada.
-    clave = "res2:" + norm(clave)
+    clave = "res3:" + norm(clave)
     hay, valor = cache.obtener(clave, DIAS_MEMO * 86400)
     if hay:
         return valor
@@ -224,7 +226,7 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
     for item, t, err in track_results:
         if t:
             s = _track_summary(t)
-            resolved.append({"input": item, "type": "track", **s})
+            resolved.append({"input": item, "type": "track", **s, "_uris": [t["uri"]]})
             uris.append(t["uri"])
             minutes += s["minutes"]
         else:
@@ -239,6 +241,7 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
                 fila["aviso"] = (f"Dura {d['minutes']} min: puede ser una edición "
                                  "ampliada o un recopilatorio. Comprueba si es "
                                  "el disco original antes de crear la lista.")
+            fila["_uris"], fila["_pistas"] = d["uris"], d.get("pistas")
             resolved.append(fila)
             uris.extend(d["uris"])
             minutes += d["minutes"]
@@ -290,12 +293,13 @@ def resolve_ordered(sp: SpotifyClient, items: list[str]) -> dict:
             if dato["minutes"] > MINUTOS_SOSPECHOSOS:
                 fila["aviso"] = (f"Dura {dato['minutes']} min: puede ser una "
                                  "edición ampliada o un recopilatorio.")
+            fila["_uris"], fila["_pistas"] = dato["uris"], dato.get("pistas")
             resolved.append(fila)
             uris.extend(dato["uris"])
             minutes += dato["minutes"]
         else:
             fila = _track_summary(dato)
-            resolved.append({"input": item, "type": "track", **fila})
+            resolved.append({"input": item, "type": "track", **fila, "_uris": [dato["uri"]]})
             uris.append(dato["uri"])
             minutes += fila["minutes"]
     return {"resolved": resolved, "unresolved": unresolved, "uris": uris,
@@ -308,3 +312,68 @@ def create_playlist(sp: SpotifyClient, name: str, description: str,
     return {"id": pl["id"], "name": pl.get("name"),
             "url": (pl.get("external_urls") or {}).get("spotify"),
             "n_tracks": len(uris)}
+
+
+# ---------- ediciones: ¿es el disco original o una reedición inflada? ----------
+
+REVISAR_DESDE = 60     # minutos: por debajo no merece la pena preguntar
+HOLGURA = 4            # minutos de diferencia que se dan por buenos
+
+
+def _mismo_titulo(a: str, b: str) -> bool:
+    a, b = _plano(norm(a)), _plano(norm(b))
+    return bool(a and b) and (a == b or a.startswith(b) or b.startswith(a))
+
+
+def ajustar_ediciones(res: dict, original) -> dict:
+    """Compara cada disco largo con su edición original y, si Spotify solo
+    tiene una ampliada, se queda con las pistas del original.
+
+    `original(artista, album)` devuelve {"minutos", "pistas": [títulos]} o
+    None (MusicBrainz, cacheado). Antes había un umbral fijo de 70 min: dio
+    falsa alarma con ( ) de Sigur Rós (72 min en el original) y hacía
+    descartar discos que solo existen en reedición (The Nectarine No.9).
+    """
+    for fila in res["resolved"]:
+        if fila.get("type") != "album" or (fila.get("minutes") or 0) <= REVISAR_DESDE:
+            continue
+        try:
+            orig = original(fila["artist"], fila["album"])
+        except Exception:  # noqa: BLE001 — sin MusicBrainz se queda el aviso simple
+            orig = None
+        if not orig or not orig.get("minutos"):
+            continue
+        fila.pop("aviso", None)
+        if fila["minutes"] <= orig["minutos"] + HOLGURA:
+            fila["edicion"] = f"original ({orig['minutos']} min según MusicBrainz)"
+            continue
+        pistas, usadas, elegidas = fila.get("_pistas") or [], set(), []
+        for titulo in orig.get("pistas") or []:
+            for i, p in enumerate(pistas):
+                if i not in usadas and _mismo_titulo(p["nombre"], titulo):
+                    usadas.add(i)
+                    break
+        elegidas = [p for i, p in enumerate(pistas) if i in usadas]
+        if orig.get("pistas") and len(elegidas) >= 0.8 * len(orig["pistas"]):
+            antes = fila["minutes"]
+            fila["_uris"] = [p["uri"] for p in elegidas]
+            fila["minutes"] = round(sum(p["ms"] for p in elegidas) / 60000)
+            fila["n_tracks"] = len(elegidas)
+            fila["edicion"] = (f"recortada a la original: Spotify solo tiene una de "
+                               f"{antes} min; he dejado sus {len(elegidas)} pistas "
+                               f"originales ({fila['minutes']} min)")
+        else:
+            fila["aviso"] = (f"Dura {fila['minutes']} min y el original "
+                             f"{orig['minutos']}: parece ampliada y no he podido "
+                             "recortarla con seguridad. Mete sus canciones con items.")
+    res["uris"] = [u for f in res["resolved"] for u in (f.get("_uris") or [])]
+    res["total_minutes"] = round(sum(f.get("minutes") or 0 for f in res["resolved"]))
+    return res
+
+
+def limpiar(res: dict) -> dict:
+    """Quita los campos internos antes de enseñárselo al modelo."""
+    for f in res.get("resolved", []):
+        f.pop("_uris", None)
+        f.pop("_pistas", None)
+    return res

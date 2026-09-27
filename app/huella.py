@@ -109,6 +109,30 @@ def lista_borrada(pid: str, nombre: str) -> None:
         _guardar_listas(datos)
 
 
+def lista_para_otro(lista: str, para: str) -> dict:
+    """Saca de SUS datos una lista que era para otra persona."""
+    nombres = set(_todas()) | {l["nombre"] for f in historial.cargar().values()
+                               for l in f.get("listas", [])}
+    exactos = [n for n in nombres if norm(n) == norm(lista)]
+    candidatos = exactos or [n for n in nombres if norm(lista) in norm(n)]
+    if len(candidatos) != 1:
+        return {"error": (f"No encuentro una sola lista que case con '{lista}'"),
+                "candidatas": sorted(candidatos)[:10] or sorted(nombres)[:30]}
+    nombre = candidatos[0]
+    quitados_notas = notes.quitar_pendientes_de_lista(nombre)
+    quitados_hist = historial.quitar_lista(nombre)
+    with _lock:
+        datos = cargar_listas()
+        entrada = datos.get(nombre) or {"fecha": None, "elementos": []}
+        entrada["para"] = para
+        datos[nombre] = entrada
+        _guardar_listas(datos)
+    return {"lista": nombre, "para": para,
+            "pendientes_quitados_de_tus_notas": quitados_notas,
+            "artistas_sacados_del_historial": quitados_hist,
+            "nota": "Ya no cuenta en tu huella ni como propuesta tuya."}
+
+
 def _todas() -> dict:
     """Listas registradas + las anteriores a este registro, reconstruidas
     de las notas (discos) y del historial (artistas de listas de canciones)."""
@@ -290,7 +314,8 @@ def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
 
 
 def huella(lf, sp=None, lista: str = "", dias: int = 180) -> dict:
-    listas = {k: v for k, v in _todas().items() if not v.get("borrada")}
+    listas = {k: v for k, v in _todas().items()
+              if not v.get("borrada") and not v.get("para")}
     if lista:
         elegidas = {k: v for k, v in listas.items() if norm(lista) in norm(k)}
         if not elegidas:

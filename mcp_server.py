@@ -1101,6 +1101,26 @@ def artist_context(artist: str) -> dict:
 
 # ---------- creación ----------
 
+def _original(artista: str, album: str):
+    """Edición original según MusicBrainz, 30 días en caché. Solo se guarda
+    lo encontrado: un fallo de red no debe quedarse un mes."""
+    clave = f"orig:{norm(artista)}:{norm(album)}"
+    hay, valor = cache.obtener(clave, 30 * 86400)
+    if hay:
+        return valor
+    valor = mb.edicion_original(artista, album)
+    if valor:
+        cache.guardar(clave, valor)
+    return valor
+
+
+def _resolver(sp, tracks=(), albums=(), items=()) -> dict:
+    """Resuelve en Spotify y comprueba las ediciones con MusicBrainz."""
+    res = (library.resolve_ordered(sp, list(items)) if items
+           else library.resolve_items(sp, list(tracks), list(albums)))
+    return library.ajustar_ediciones(res, _original)
+
+
 @mcp.tool()
 def resolve(tracks: list[str] = [], albums: list[str] = [],
             items: list[str] = []) -> dict:
@@ -1111,15 +1131,17 @@ def resolve(tracks: list[str] = [], albums: list[str] = [],
       "album: Artista – Álbum". Úsala si mezclas discos y canciones.
     - `tracks` y `albums` por separado (las canciones van delante).
 
-    Elige la EDICIÓN ORIGINAL de cada disco (evita deluxes y antologías) y
-    avisa si alguno pasa de 70 minutos, que suele delatar una edición
-    ampliada. Úsalo siempre antes de create_playlist.
+    Elige la EDICIÓN ORIGINAL de cada disco (evita deluxes y antologías).
+    Los discos de más de 60 min se comparan con la primera edición en
+    MusicBrainz: si coinciden, 'edicion' lo dice; si Spotify solo tiene una
+    ampliada, se recorta sola a las pistas del original. Úsalo siempre
+    antes de create_playlist.
     """
     sp, _, _ = _clients()
     _require_auth(sp)
-    res = (library.resolve_ordered(sp, items) if items
-           else library.resolve_items(sp, tracks, albums))
+    res = _resolver(sp, tracks, albums, items)
     res.pop("uris", None)
+    library.limpiar(res)
     res["revision"] = historial.revisar(res["resolved"])
     return res
 
@@ -1150,8 +1172,7 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
     sp, _, _ = _clients()
     _require_auth(sp)
     name, description = des_escapar(name), des_escapar(description)
-    res = (library.resolve_ordered(sp, items) if items
-           else library.resolve_items(sp, tracks, albums))
+    res = _resolver(sp, tracks, albums, items)
     if not res["uris"]:
         return {"error": "Nada que añadir: no se resolvió ningún elemento",
                 "unresolved": res["unresolved"]}
@@ -1186,8 +1207,9 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
 
     return {"created": created, "total_minutes": res["total_minutes"],
             "resolved": [r["input"] for r in res["resolved"]],
-            "avisos": [f"{r['input']}: {r['aviso']}" for r in res["resolved"]
-                       if r.get("aviso")] or None,
+            "avisos": [f"{r['input']}: {r.get('aviso') or r.get('edicion')}"
+                       for r in res["resolved"]
+                       if r.get("aviso") or (r.get("edicion") or "").startswith("recortada")] or None,
             "unresolved": res["unresolved"],
             "apuntados_como_pendiente": apuntados,
             "huella": ("Registrada: footprint seguirá qué escucha de esta lista "
@@ -1216,7 +1238,8 @@ def edit_playlist(playlist: str, add: list[str] = [], remove: list[str] = [],
     sp, _, _ = _clients()
     _require_auth(sp)
     rename, description = des_escapar(rename), des_escapar(description)
-    res = editar_mod.editar(sp, playlist, add, remove, after, at_start, rename, description)
+    res = editar_mod.editar(sp, playlist, add, remove, after, at_start, rename, description,
+                            resolver=lambda items: _resolver(sp, items=items))
     viejo = res["playlist"] if not rename else None
     huella_mod.lista_editada(res["id"], viejo or "", rename, res.pop("resueltos"),
                              res.get("quitadas") or [])
@@ -1266,6 +1289,18 @@ def concert_setlists(artist: str, gira: str = "", ultimos: int = 15) -> dict:
                 **setlists_mod.resumir(lista, gira, ultimos)}
     return cache.recordar(f"setlist:{ficha['mbid']}:{norm(gira)}:{ultimos}",
                           12 * 3600, calcular)
+
+
+@mcp.tool()
+def playlist_for_someone_else(playlist: str, para: str) -> dict:
+    """Marca una lista YA CREADA como hecha para otra persona (su novia, un
+    amigo…): quita de sus notas los discos que quedaron como 'pendiente' por
+    esa lista y la saca de su historial y de su huella. No toca Spotify.
+
+    `playlist`: el nombre con que se creó (vale parcial si es único).
+    Para listas nuevas para otros usa create_playlist(para=…).
+    """
+    return huella_mod.lista_para_otro(playlist, para)
 
 
 @mcp.tool()

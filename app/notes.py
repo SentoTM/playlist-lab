@@ -155,3 +155,16 @@ def albumes_escuchados() -> set[str]:
     datos = cargar()["albumes"]
     return {k for k, v in datos.items()
             if v.get("veredicto") and v["veredicto"] != "pendiente"}
+
+
+def quitar_pendientes_de_lista(lista: str) -> int:
+    """Borra los 'pendiente' que se apuntaron solo por estar en esa lista."""
+    datos = cargar()
+    marca = f"En la lista «{lista}»"
+    fuera = [k for k, v in datos["albumes"].items()
+             if v.get("veredicto") == "pendiente" and (v.get("nota") or "") == marca]
+    for k in fuera:
+        del datos["albumes"][k]
+    if fuera:
+        _guardar(datos)
+    return len(fuera)

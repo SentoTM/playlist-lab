@@ -74,6 +74,26 @@ class MusicbrainzClient:
             }
         return None
 
+    def edicion_original(self, artist: str, album: str) -> dict | None:
+        """Duración y pistas de la PRIMERA edición oficial de un disco."""
+        rg = self.find_release(artist, album)
+        if not rg or not rg.get("mbid"):
+            return None
+        data = self._get("/release", **{"release-group": rg["mbid"],
+                                        "inc": "recordings", "status": "official",
+                                        "limit": 25})
+        ediciones = [r for r in data.get("releases", []) if r.get("media")]
+        if not ediciones:
+            return None
+        ediciones.sort(key=lambda r: (r.get("date") or "9999",
+                                      sum(len(m.get("tracks") or []) for m in r["media"])))
+        r = ediciones[0]
+        pistas = [t for m in r["media"] for t in (m.get("tracks") or [])]
+        ms = sum(t.get("length") or 0 for t in pistas)
+        return {"minutos": round(ms / 60000) if ms else None,
+                "pistas": [t.get("title") for t in pistas],
+                "fecha": r.get("date")}
+
     def artist_relations(self, artist: str) -> dict:
         """Formación y parentesco: miembros, grupos en los que también tocan
         y de qué otros proyectos vienen. Es el mapa de una escena."""
