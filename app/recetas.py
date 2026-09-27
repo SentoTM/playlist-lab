@@ -192,7 +192,9 @@ RECETAS = {
         "familia": "momento",
         "cuando": "Voy a ver a X; un festival.",
         "piensa": "Qué llevarse aprendido; en un cartel, a quién no perderse.",
-        "hazlo": ["Cartel entero por vet_candidates: prioriza lo que no conoce y encaja."],
+        "hazlo": ["Concierto: concert_setlists(artista) da el setlist típico real; "
+                  "construye la lista sobre ese arco y cita setlist.fm.",
+                  "Cartel entero por vet_candidates: prioriza lo que no conoce y encaja."],
         "cuidado": ["No inventes setlists: si la gira es nueva, dilo y apóyate en la anterior.",
                     "Herederos no es lo mismo que contemporáneos: un heredero empezó "
                     "DESPUÉS de su auge y los cita. Compruébalo con check_lineage "

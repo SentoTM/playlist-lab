@@ -18,7 +18,7 @@ from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (cache, discovery, dossier, editar as editar_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
+from app import (cache, discovery, dossier, editar as editar_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
@@ -29,6 +29,7 @@ from app.clients.press import FEEDS, PressClient     # noqa: E402
 from app.clients.spotify import SpotifyClient, SpotifyRateLimited  # noqa: E402
 from app.clients.statsfm import StatsfmClient        # noqa: E402
 from app.clients.wikidata import WikidataClient      # noqa: E402
+from app.clients.setlistfm import SetlistfmClient    # noqa: E402
 from app.clients.wikipedia import WikipediaClient    # noqa: E402
 from app.text import des_escapar, norm                            # noqa: E402
 
@@ -43,6 +44,7 @@ wiki = WikipediaClient()
 kexp = KexpClient()
 wd = WikidataClient()
 lb = ListenbrainzClient()
+sfm = SetlistfmClient()
 
 _cache: dict = {}
 CACHE_TTL = 1800  # 30 min: los tops no cambian en una conversación
@@ -1237,6 +1239,33 @@ def delete_playlist(playlist: str, confirmar: bool = False) -> dict:
         huella_mod.lista_borrada(res["id"], res["playlist"])
         cache.olvidar(f"huella::180")
     return res
+
+
+@mcp.tool()
+def concert_setlists(artist: str, gira: str = "", ultimos: int = 15) -> dict:
+    """Qué toca DE VERDAD un grupo en directo, según setlist.fm.
+
+    De sus últimos conciertos (`ultimos`, 15 por defecto; con `gira` solo
+    los de esa gira) saca el SETLIST TÍPICO en su orden medio, qué canciones
+    son fijas, con cuáles suele abrir y cerrar, las sorpresas de una noche y
+    el último concierto completo con su enlace.
+
+    Úsalo SIEMPRE para listas de "voy a ver a X": sustituye a suponer el
+    setlist. Cita setlist.fm como fuente. Se cachea 12 h.
+    """
+    if not sfm.disponible:
+        return {"error": "Falta SETLISTFM_API_KEY (en Railway → Variables y en .env)."}
+    ficha = mb.find_artist(artist) or {}
+    if not ficha.get("mbid"):
+        return {"error": f"No encuentro a '{artist}' en MusicBrainz, que es lo que "
+                         "usa setlist.fm para identificar al artista."}
+
+    def calcular():
+        lista = sfm.setlists_de(ficha["mbid"], paginas=2 if ultimos <= 30 else 3)
+        return {"artist": ficha.get("artist"),
+                **setlists_mod.resumir(lista, gira, ultimos)}
+    return cache.recordar(f"setlist:{ficha['mbid']}:{norm(gira)}:{ultimos}",
+                          12 * 3600, calcular)
 
 
 @mcp.tool()
