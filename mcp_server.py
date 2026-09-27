@@ -18,7 +18,7 @@ from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (cache, discovery, dossier, editar as editar_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
+from app import (cache, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
@@ -530,6 +530,10 @@ duplicada); para borrarla, delete_playlist con confirmación. Si la lista
 es para otra persona, create_playlist(para="nombre").
 Al crear, los discos quedan apuntados como "pendiente" en sus notas.
 Cuando opine de varios a la vez, guárdalo con rate en una sola llamada.
+SEMILLAS: en cada lista tuya planta UNA semilla (create_playlist con
+semilla=… e hilo=…): una pieza que abra un camino fuera de lo pedido, con
+puerta de entrada. Antes de cada tanda mira seeds y riega lo que prendió
+(el siguiente paso de ese hilo, no el mismo disco).
 Antes de una tanda nueva, mira footprint: qué prendió de lo anterior
 (volvió, guardó, tiró del hilo). Sigue esos hilos; no insistas en lo que
 quedó sin tocar, pero tampoco lo tomes como un no.
@@ -1150,13 +1154,19 @@ def resolve(tracks: list[str] = [], albums: list[str] = [],
 def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
                     items: list[str] = [],
                     description: str = "Curada con Playlist Lab",
-                    public: bool = False, para: str = "") -> dict:
+                    public: bool = False, para: str = "",
+                    semilla: str = "", hilo: str = "") -> dict:
     """Crea la playlist en Spotify.
 
     `para`: si la lista es PARA OTRA PERSONA (su novia, un amigo…), pon su
     nombre. Así no se apuntan esos discos como pendientes suyos ni entran
     en su historial ni en su huella. Recuérdale que lo que escuche de esa
     lista en su cuenta sí acabará en sus estadísticas.
+
+    `semilla` + `hilo`: marca UNA pieza de la lista (mismo formato que en
+    items) como semilla hacia otro sitio, y `hilo` dice hacia dónde apunta
+    ("del post-punk al afrobeat vía ESG"). La huella dirá si prende; si
+    prende, en la siguiente tanda se tira de ese hilo (ver seeds).
 
     Igual que resolve: `items` para un orden exacto que mezcle discos
     ("album: Artista – Álbum") y canciones ("Artista – Canción"), o
@@ -1205,7 +1215,10 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
     huella_mod.registrar_lista(name, res["resolved"],
                                (created or {}).get("url", "") if isinstance(created, dict) else "")
 
+    plantada = semillas_mod.plantar(name, semilla, hilo or "(sin hilo)") if semilla else None
+
     return {"created": created, "total_minutes": res["total_minutes"],
+            "semilla": plantada,
             "resolved": [r["input"] for r in res["resolved"]],
             "avisos": [f"{r['input']}: {r.get('aviso') or r.get('edicion')}"
                        for r in res["resolved"]
@@ -1289,6 +1302,23 @@ def concert_setlists(artist: str, gira: str = "", ultimos: int = 15) -> dict:
                 **setlists_mod.resumir(lista, gira, ultimos)}
     return cache.recordar(f"setlist:{ficha['mbid']}:{norm(gira)}:{ultimos}",
                           12 * 3600, calcular)
+
+
+@mcp.tool()
+def seeds() -> dict:
+    """SEMILLAS: qué hilos hacia otros sitios han prendido y cuáles no.
+
+    Cruza las semillas plantadas en sus listas con su huella (lo que ha
+    escuchado de verdad). Devuelve 'para_regar' (prendieron o arraigaron:
+    tira de ese hilo en la próxima tanda), 'abiertas' y 'secas'. Úsalo
+    antes de cada tanda nueva y SIEMPRE en la tanda semanal.
+    """
+    sp, lf, _ = _clients()
+    _require_lastfm(lf)
+    h = cache.recordar("huella::180", 1800,
+                       lambda: huella_mod.huella(lf, sp if sp.authenticated else None, "", 180))
+    datos = semillas_mod.actualizar(h.get("listas") or {})
+    return semillas_mod.resumen(datos)
 
 
 @mcp.tool()

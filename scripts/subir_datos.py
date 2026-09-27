@@ -18,7 +18,7 @@ load_dotenv(RAIZ / ".env")
 URL = (os.getenv("PLAYLIST_LAB_URL") or "").rstrip("/")
 TOKEN = os.getenv("ADMIN_TOKEN") or ""
 FICHEROS = ["notas.json", "perfil.md", "cache.json", "prensa.json", "radar.json",
-            "seguimiento.json", "propuestos.json", "listas.json", "scrobbles.json"]
+            "seguimiento.json", "propuestos.json", "listas.json", "scrobbles.json", "semillas.json"]
 
 if not URL or not TOKEN:
     sys.exit("Falta PLAYLIST_LAB_URL o ADMIN_TOKEN en el .env")

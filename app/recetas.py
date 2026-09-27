@@ -70,6 +70,24 @@ RECETAS = {
         "hazlo": ["Al menos la novedad sale del radar.", "Una frase por disco: por qué a él."],
         "cuidado": ["Dos discos que mueven el mismo eje."],
     },
+    "semana_automatica": {
+        "familia": "descubrir",
+        "cuando": "La tanda de cada domingo (tarea programada) o 'hazme la semana'.",
+        "piensa": "Un viaje de lunes a viernes que nazca de lo que ha PRENDIDO, no de "
+                  "cero: el hilo de la semana sale de las semillas que ha regado su escucha.",
+        "hazlo": ["footprint y seeds: qué prendió, qué arraigó, qué se secó.",
+                  "taste_profile (fase actual) y radar (radar_update si es viejo).",
+                  "Elige el hilo: una semilla que prendió → el siguiente paso de ese camino. "
+                  "Si no prendió ninguna, parte de su fase actual.",
+                  "5 listas (Lunes…Viernes), 5 discos cada una, casillas del menú de cinco; "
+                  "al menos una novedad del radar por día.",
+                  "vet_candidates con los 25 (dos llamadas) y revisa 'diversidad'.",
+                  "Una semilla nueva por día con create_playlist(semilla=…, hilo=…).",
+                  "Resumen final: qué prendió la semana pasada, el hilo de esta, y qué "
+                  "semilla lleva cada día."],
+        "cuidado": ["Repetir artistas de semanas anteriores (mira ya_propuestos_antes).",
+                    "Regar una semilla con el mismo disco: da el siguiente paso."],
+    },
     "semana_tematica": {
         "familia": "descubrir",
         "cuando": "Listas de lunes a viernes con un hilo entre ellas.",
