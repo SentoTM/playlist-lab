@@ -73,18 +73,21 @@ RECETAS = {
     "semana_automatica": {
         "familia": "descubrir",
         "cuando": "La tanda de cada domingo (tarea programada) o 'hazme la semana'.",
-        "piensa": "Un viaje de lunes a viernes que nazca de lo que ha PRENDIDO, no de "
-                  "cero: el hilo de la semana sale de las semillas que ha regado su escucha.",
-        "hazlo": ["footprint y seeds: qué prendió, qué arraigó, qué se secó.",
-                  "taste_profile (fase actual) y radar (radar_update si es viejo).",
-                  "Elige el hilo: una semilla que prendió → el siguiente paso de ese camino. "
-                  "Si no prendió ninguna, parte de su fase actual.",
+        "piensa": "Un viaje de lunes a viernes por UN territorio de todo su historial, "
+                  "elegido por la rotación del itinerario (next_journey), no por lo último "
+                  "que ha escuchado: si no, se encierra en una madriguera.",
+        "hazlo": ["next_journey: territorio, tipo de viaje y grupos suyos de partida. "
+                  "Es el destino; no lo cambies salvo que no haya por dónde tirar.",
+                  "footprint y seeds solo para AJUSTAR: qué discos entran y, como mucho, "
+                  "un día (p. ej. el viernes) para regar una semilla que prendió.",
+                  "taste_profile y radar (radar_update si es viejo) para las novedades.",
                   "5 listas (Lunes…Viernes), 5 discos cada una, casillas del menú de cinco; "
                   "al menos una novedad del radar por día.",
                   "vet_candidates con los 25 (dos llamadas) y revisa 'diversidad'.",
                   "Una semilla nueva por día con create_playlist(semilla=…, hilo=…).",
-                  "Resumen final: qué prendió la semana pasada, el hilo de esta, y qué "
-                  "semilla lleva cada día."],
+                  "journey_done con territorio, tipo, título de la semana y grupos de partida.",
+                  "Resumen final: el viaje de la semana (territorio y tipo), qué prendió "
+                  "la semana pasada, y los discos y la semilla de cada día."],
         "cuidado": ["Repetir artistas de semanas anteriores (mira ya_propuestos_antes).",
                     "Regar una semilla con el mismo disco: da el siguiente paso."],
     },

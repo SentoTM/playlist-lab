@@ -26,7 +26,7 @@ DATOS = Path(__file__).resolve().parents[1] / "datos"
 # Lo único que se puede subir o bajar: nada de rutas arbitrarias.
 FICHEROS = {"notas.json", "perfil.md", "cache.json", "prensa.json", "radar.json",
             "seguimiento.json", "propuestos.json", "listas.json", "scrobbles.json",
-            "semillas.json"}
+            "semillas.json", "rutas.json"}
 
 
 def _url_publica() -> str | None:

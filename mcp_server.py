@@ -18,7 +18,7 @@ from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (cache, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
+from app import (atlas as atlas_mod, cache, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
@@ -1302,6 +1302,65 @@ def concert_setlists(artist: str, gira: str = "", ultimos: int = 15) -> dict:
                 **setlists_mod.resumir(lista, gira, ultimos)}
     return cache.recordar(f"setlist:{ficha['mbid']}:{norm(gira)}:{ultimos}",
                           12 * 3600, calcular)
+
+
+def _atlas() -> dict:
+    sp, lf, sf = _clients()
+    if not sf:
+        raise RuntimeError("El atlas sale de stats.fm (STATSFM_USERNAME).")
+
+    def etiquetas(nombre):
+        return (lf.artist_info(nombre) or {}).get("tags") if lf else None
+    hay, valor = cache.obtener("atlas", 7 * 86400)
+    if hay:
+        return valor
+    # La primera vez consulta ~300 artistas en Last.fm: en segundo plano.
+    res = jobs.run_or_wait("atlas", lambda: {"atlas": cache.recordar(
+        "atlas", 7 * 86400,
+        lambda: atlas_mod.construir(sf.top_artists("lifetime", 300), etiquetas))},
+        wait_seconds=40)
+    if "atlas" not in res:
+        raise RuntimeError("Construyendo el atlas (la primera vez tarda un minuto): "
+                           "vuelve a llamar en unos segundos.")
+    return res["atlas"]
+
+
+@mcp.tool()
+def taste_atlas() -> dict:
+    """EL ATLAS DE SU GUSTO: todo su historial (sus 300 artistas de siempre
+    en stats.fm) agrupado en territorios (post-punk, indie en castellano,
+    metal, electrónica…), con el peso de cada uno, sus grupos y géneros, y
+    cuándo se viajó por última vez por cada territorio. Se rehace cada 7 días.
+    """
+    atlas = _atlas()
+    ultima = {}
+    for r in atlas_mod.cargar_rutas():
+        ultima[r["territorio"]] = max(ultima.get(r["territorio"], ""), r["fecha"])
+    return {"territorios": {k: {"peso": f"{v['peso']} %", "grupos": v["artistas"][:12],
+                                "n_grupos": len(v["artistas"]), "generos": v["generos"],
+                                "ultima_visita": ultima.get(k) or "nunca"}
+                            for k, v in atlas.items()}}
+
+
+@mcp.tool()
+def next_journey() -> dict:
+    """EL SIGUIENTE VIAJE del itinerario: qué territorio de su gusto toca, con
+    qué tipo de viaje (genealogía, escena, época, sello, universo de un grupo,
+    cruce con otro género) y desde qué grupos suyos arrancar.
+
+    Es el MOTOR de la tanda semanal: rota por todo su historial para no
+    encerrarse en lo último que escuchó. Úsalo para "hazme la semana" y en la
+    tarea de los domingos. Al terminar, registra el viaje con journey_done.
+    """
+    return atlas_mod.siguiente(_atlas())
+
+
+@mcp.tool()
+def journey_done(territorio: str, tipo: str, titulo: str, anclas: list[str] = []) -> dict:
+    """Apunta un viaje hecho (territorio y tipo tal como los dio next_journey,
+    el título de la semana y los grupos de partida que usaste), para que la
+    rotación no repita y quede el mapa de por dónde ha viajado."""
+    return atlas_mod.registrar(territorio, tipo, des_escapar(titulo), anclas)
 
 
 @mcp.tool()
