@@ -8,6 +8,7 @@ tu perfil con su conocimiento de escenas, discografías y crítica.
     python mcp_server.py            # stdio (Claude Desktop)
     python mcp_server.py --http     # streamable HTTP en http://127.0.0.1:8877/mcp (ChatGPT vía túnel)
 """
+import logging
 import os
 import sys
 import time
@@ -46,6 +47,7 @@ wd = WikidataClient()
 lb = ListenbrainzClient()
 sfm = SetlistfmClient()
 
+log = logging.getLogger("playlist_lab.mcp")
 _cache: dict = {}
 CACHE_TTL = 1800  # 30 min: los tops no cambian en una conversación
 
