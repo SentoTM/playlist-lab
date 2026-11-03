@@ -192,6 +192,43 @@ def _memo(clave: str, fn):
     return valor
 
 
+# ---------- URIs directas: lo ya resuelto no se vuelve a buscar ----------
+
+_URI = re.compile(r"(?:spotify:(?P<t1>track|album):|https?://open\.spotify\.com/"
+                  r"(?:intl-[a-z]{2}/)?(?P<t2>track|album)/)(?P<id>[A-Za-z0-9]{22})")
+
+
+def separar_uri(item: str) -> tuple[str, tuple[str, str] | None]:
+    """'Artista – Título | spotify:album:ID' → ('Artista – Título', ('album', ID)).
+
+    También vale la URI sola o un enlace de open.spotify.com. Sin URI
+    devuelve (item, None) y se busca como siempre.
+    """
+    m = _URI.search(item or "")
+    if not m:
+        return item, None
+    texto = (item[:m.start()] + item[m.end():]).strip(" |·-–—\t")
+    return texto, (m.group("t1") or m.group("t2"), m.group("id"))
+
+
+def _por_uri(sp: SpotifyClient, texto: str, tipo: str, sid: str):
+    """El dato de Spotify para una URI ya conocida.
+
+    Una canción no cuesta NADA: la URI basta para añadirla (el nombre sale
+    del texto que la acompañe, si lo hay). Un disco cuesta UNA petición
+    para saber sus pistas, memorizada 7 días, en vez de búsqueda + disco.
+    """
+    if tipo == "track":
+        try:
+            artista, titulo = parse_item(texto) if texto else ("", "")
+        except ValueError:
+            artista, titulo = "", texto
+        return {"uri": f"spotify:track:{sid}", "name": titulo or None,
+                "artists": [{"name": artista or None}], "album": {}, "duration_ms": 0,
+                "_sin_peticion": True}
+    return _memo(f"a:uri:{sid}", lambda: album_details(sp, sid))
+
+
 def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> dict:
     """Resuelve listas de 'Artista – Canción' y 'Artista – Álbum'.
 
@@ -201,8 +238,17 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
     """
     resolved, unresolved, uris = [], [], []
     minutes = 0.0
+    # Una URI dice ella sola si es disco o canción, venga en la lista que venga
+    tipo_uri = {i: (separar_uri(i)[1] or ("", ""))[0] for i in list(tracks) + list(albums)}
+    tracks, albums = ([i for i in tracks if tipo_uri[i] != "album"] +
+                      [i for i in albums if tipo_uri[i] == "track"],
+                      [i for i in albums if tipo_uri[i] != "track"] +
+                      [i for i in tracks if tipo_uri[i] == "album"])
 
     def do_track(item: str):
+        texto, uri = separar_uri(item)
+        if uri:
+            return item, _por_uri(sp, texto, "track", uri[1]), None
         try:
             artist, title = parse_item(item)
         except ValueError as e:
@@ -210,6 +256,9 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
         return item, _memo("t:" + item, lambda: find_track(sp, artist, title)), None
 
     def do_album(item: str):
+        texto, uri = separar_uri(item)
+        if uri:
+            return item, _por_uri(sp, texto, "album", uri[1]), None
         try:
             artist, album = parse_item(item)
         except ValueError as e:
@@ -236,7 +285,8 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
         if d:
             fila = {"input": item, "type": "album", "album": d["album"],
                     "artist": d["artist"], "year": d["year"],
-                    "n_tracks": d["n_tracks"], "minutes": d["minutes"]}
+                    "n_tracks": d["n_tracks"], "minutes": d["minutes"],
+                    "uri": f"spotify:album:{d['id']}" if d.get("id") else None}
             if d["minutes"] > MINUTOS_SOSPECHOSOS:
                 fila["aviso"] = (f"Dura {d['minutes']} min: puede ser una edición "
                                  "ampliada o un recopilatorio. Comprueba si es "
@@ -261,10 +311,13 @@ def resolve_ordered(sp: SpotifyClient, items: list[str]) -> dict:
     existe en una edición de dos horas).
     """
     def uno(item: str):
-        texto = item.strip()
+        texto, uri = separar_uri(item.strip())
         es_album = texto.lower().startswith("album:") or texto.lower().startswith("álbum:")
         if es_album:
             texto = texto.split(":", 1)[1].strip()
+        if uri:
+            tipo = uri[0]
+            return item, tipo, _por_uri(sp, texto, tipo, uri[1]), None
         try:
             artista, titulo = parse_item(texto)
         except ValueError as e:
@@ -289,7 +342,8 @@ def resolve_ordered(sp: SpotifyClient, items: list[str]) -> dict:
         if tipo == "album":
             fila = {"input": item, "type": "album", "album": dato["album"],
                     "artist": dato["artist"], "year": dato["year"],
-                    "n_tracks": dato["n_tracks"], "minutes": dato["minutes"]}
+                    "n_tracks": dato["n_tracks"], "minutes": dato["minutes"],
+                    "uri": f"spotify:album:{dato['id']}" if dato.get("id") else None}
             if dato["minutes"] > MINUTOS_SOSPECHOSOS:
                 fila["aviso"] = (f"Dura {dato['minutes']} min: puede ser una "
                                  "edición ampliada o un recopilatorio.")

@@ -1218,6 +1218,12 @@ def resolve(tracks: list[str] = [], albums: list[str] = [],
       "album: Artista – Álbum". Úsala si mezclas discos y canciones.
     - `tracks` y `albums` por separado (las canciones van delante).
 
+    Cada elemento resuelto trae su `uri`. Pásale a create_playlist esas
+    URIs ("Artista – Título | spotify:album:…", o la URI sola) y NO se vuelve
+    a buscar nada: una canción con URI no cuesta ni una petición y un disco,
+    una (sus pistas). Sin URIs, crear la lista repite todas las búsquedas
+    si la memoria de resoluciones ya no las tiene.
+
     Elige la EDICIÓN ORIGINAL de cada disco (evita deluxes y antologías).
     Los discos de más de 60 min se comparan con la primera edición en
     MusicBrainz: si coinciden, 'edicion' lo dice; si Spotify solo tiene una
@@ -1253,7 +1259,10 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
 
     Igual que resolve: `items` para un orden exacto que mezcle discos
     ("album: Artista – Álbum") y canciones ("Artista – Canción"), o
-    `tracks`/`albums` por separado.
+    `tracks`/`albums` por separado. Si ya pasaste por resolve, usa las URIs
+    que devolvió ("Artista – Álbum | spotify:album:…", también vale la URI
+    sola o un enlace de open.spotify.com): así no se repite ninguna
+    búsqueda y la cuota de Spotify se gasta una sola vez.
 
     Los discos que entran quedan apuntados como "pendiente" en sus notas
     (salvo que ya tuvieran veredicto), para que cuando diga qué le
