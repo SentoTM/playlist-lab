@@ -20,7 +20,10 @@ from fastmcp import FastMCP
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from app import (atlas as atlas_mod, cache, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
-                 library, notes, radar as radar_mod, recetas, seguimiento, taste, vet)
+                 library, notes, novedades_mes, radar as radar_mod, recetas, seguimiento,
+                 taste, vet)
+from app.clients.calendarios import CalendariosClient  # noqa: E402
+from app.clients.deezer import DeezerClient          # noqa: E402
 from app.clients.lastfm import LastfmClient          # noqa: E402
 from app.clients.musicbrainz import MusicbrainzClient  # noqa: E402
 from app.clients.kexp import KexpClient              # noqa: E402
@@ -46,6 +49,8 @@ kexp = KexpClient()
 wd = WikidataClient()
 lb = ListenbrainzClient()
 sfm = SetlistfmClient()
+deezer = DeezerClient()
+calendarios_cli = CalendariosClient()
 
 log = logging.getLogger("playlist_lab.mcp")
 _cache: dict = {}
@@ -448,6 +453,82 @@ def new_releases(months: int = 3, include_known_artists: bool = True) -> dict:
                                       include_known_artists, paso=paso, mb=mb)
 
     return jobs.run_or_wait(key, calcular)
+
+
+def _fuentes_sin_spotify() -> tuple[LastfmClient | None, StatsfmClient | None]:
+    """Last.fm y stats.fm sin crear siquiera el cliente de Spotify."""
+    lf = (LastfmClient(os.getenv("LASTFM_API_KEY", ""), os.getenv("LASTFM_USERNAME") or None)
+          if os.getenv("LASTFM_API_KEY") else None)
+    sf = (StatsfmClient(os.getenv("STATSFM_USERNAME", ""))
+          if os.getenv("STATSFM_USERNAME") else None)
+    return lf, sf
+
+
+@mcp.tool()
+def monthly_releases(mes: str, limite: int = 30, min_escuchas: int = 10) -> dict:
+    """LOS DISCOS QUE HAN SALIDO EN UN MES y probablemente le interesan, por
+    afinidad y con el porqué de cada uno. Es la fuente de la lista mensual de
+    novedades: úsala ANTES que artist_releases, que gasta cuota de Spotify.
+
+    NO GASTA CUOTA DE SPOTIFY: ni una petición (lo dice
+    `estadisticas.peticiones_a_spotify`, que debe salir 0). Spotify solo se
+    usa después, una vez, para crear la lista con create_playlist.
+
+    `mes` en formato "AAAA-MM" (p. ej. "2026-10"); solo cuenta lo publicado
+    dentro de ese mes natural. Rastrea cientos de artistas: todo su
+    historial de stats.fm con al menos `min_escuchas` escuchas (no solo los
+    tops), sus artistas de Last.fm, los que sigue o guarda (si ya están en
+    caché), los vecinos de sus artistas de los últimos seis meses (`órbita`)
+    y lo que citan el radar, la prensa y los calendarios de lanzamientos
+    (Dod Magazine, Binaural, Bandcamp Daily) aunque no lo escuche
+    (`internacional`, validado con vet_candidates y sus géneros). Los
+    lanzamientos salen de Deezer, con MusicBrainz de respaldo.
+
+    Solo discos: álbumes y EPs de 4 o más canciones. Singles, directos,
+    remezclas, reediciones, deluxes y ediciones japonesas, recopilatorios y
+    bandas sonoras van a `descartados` con su motivo. `dudoso` marca posibles
+    homónimos (géneros que no cuadran, muy pocos fans): no los metas sin
+    mirarlos.
+
+    Cada disco trae artista, título, fecha, tipo, canciones, minutos, sello,
+    relacion (de_los_tuyos / órbita / internacional), sus escuchas del
+    artista, puntos, porque (una frase), fuentes, dudoso y los ids de Deezer
+    y MusicBrainz.
+
+    La primera vez en el mes tarda varios minutos y va en segundo plano: si
+    la respuesta dice `vuelve_a_llamar`, llama otra vez con los MISMOS
+    parámetros. Después todo está en caché y es casi instantánea.
+    """
+    lf, sf = _fuentes_sin_spotify()
+    try:
+        novedades_mes.rango_mes(mes)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    def calcular(paso):
+        hay, biblio = cache.obtener("biblioteca", 365 * 24 * 3600)  # solo caché
+        hay_k, conocidos = cache.obtener("known", 7 * 24 * 3600)
+        if not hay_k:
+            conocidos = taste.known_artists(sf, lf, biblio if hay else None)
+
+        def vet_fn(nombres):
+            if not lf:
+                return {}
+            return vet.validar(nombres, lf, kexp, conocidos, notes.para(list(nombres)),
+                               mb=None)
+
+        return novedades_mes.calcular(
+            mes, sf, lf, deezer, mb, kexp, calendarios_cli,
+            biblio if hay else None, notes.vetados(), vet_fn,
+            min_escuchas=min_escuchas, paso=paso,
+            contar_spotify=lambda: SpotifyClient.peticiones)
+
+    res = jobs.run_or_wait(f"monthly:{mes}:{min_escuchas}", calcular)
+    if "discos" in res:
+        res = dict(res)
+        res["fuera_por_limite"] = max(0, len(res["discos"]) - limite)
+        res["discos"] = res["discos"][:limite]
+    return res
 
 
 @mcp.tool()

@@ -1,0 +1,64 @@
+{
+ "Biznaga": {
+  "created": "2026-11-03T10:00:00.000Z",
+  "count": 2,
+  "offset": 0,
+  "release-groups": [
+   {
+    "id": "b1a2c3d4-0000-4000-8000-000000000001",
+    "type-id": "f529b476",
+    "score": 100,
+    "primary-type-id": "f529b476",
+    "title": "Una ciudad feliz",
+    "first-release-date": "2026-10-30",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "artist-credit": [
+     {
+      "name": "Biznaga",
+      "artist": {
+       "id": "x",
+       "name": "Biznaga"
+      }
+     }
+    ]
+   },
+   {
+    "id": "b1a2c3d4-0000-4000-8000-000000000002",
+    "score": 98,
+    "title": "En directo en el Price",
+    "first-release-date": "2026-10-05",
+    "primary-type": "Album",
+    "secondary-types": [
+     "Live"
+    ],
+    "artist-credit": [
+     {
+      "name": "Biznaga",
+      "artist": {
+       "id": "x",
+       "name": "Biznaga"
+      }
+     }
+    ]
+   },
+   {
+    "id": "b1a2c3d4-0000-4000-8000-000000000003",
+    "score": 80,
+    "title": "Otro grupo",
+    "first-release-date": "2026-10-12",
+    "primary-type": "Album",
+    "secondary-types": [],
+    "artist-credit": [
+     {
+      "name": "Biznaga Sound System",
+      "artist": {
+       "id": "y",
+       "name": "Biznaga Sound System"
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,1893 @@
+{
+ "/album/1001": {
+  "id": 1001,
+  "title": "Manufacturas del Club de la Gente Sola (MCGS)",
+  "upc": "01001000000",
+  "link": "https://www.deezer.com/album/1001",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Sony Music Spain",
+  "nb_tracks": 12,
+  "duration": 2710,
+  "fans": 5000,
+  "release_date": "2026-10-02",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 11,
+   "name": "Arde Bogotá",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/album/1002": {
+  "id": 1002,
+  "title": "Los Perros",
+  "upc": "01002000000",
+  "link": "https://www.deezer.com/album/1002",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Sony Music Spain",
+  "nb_tracks": 1,
+  "duration": 214,
+  "fans": 5000,
+  "release_date": "2026-09-12",
+  "record_type": "single",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 11,
+   "name": "Arde Bogotá",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/album/1003": {
+  "id": 1003,
+  "title": "Cowboys de la A3",
+  "upc": "01003000000",
+  "link": "https://www.deezer.com/album/1003",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Sony Music Spain",
+  "nb_tracks": 11,
+  "duration": 2460,
+  "fans": 5000,
+  "release_date": "2023-04-21",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 11,
+   "name": "Arde Bogotá",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/11/albums": {
+  "data": [
+   {
+    "id": 1001,
+    "title": "Manufacturas del Club de la Gente Sola (MCGS)",
+    "link": "https://www.deezer.com/album/1001",
+    "cover": "https://api.deezer.com/album/1001/image",
+    "genre_id": 152,
+    "fans": 5000,
+    "release_date": "2026-10-02",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1001/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   },
+   {
+    "id": 1002,
+    "title": "Los Perros",
+    "link": "https://www.deezer.com/album/1002",
+    "cover": "https://api.deezer.com/album/1002/image",
+    "genre_id": 152,
+    "fans": 5000,
+    "release_date": "2026-09-12",
+    "record_type": "single",
+    "tracklist": "https://api.deezer.com/album/1002/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   },
+   {
+    "id": 1003,
+    "title": "Cowboys de la A3",
+    "link": "https://www.deezer.com/album/1003",
+    "cover": "https://api.deezer.com/album/1003/image",
+    "genre_id": 152,
+    "fans": 5000,
+    "release_date": "2023-04-21",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1003/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 3
+ },
+ "/album/1004": {
+  "id": 1004,
+  "title": "NECESITO ESTÍMULOS",
+  "upc": "01004000000",
+  "link": "https://www.deezer.com/album/1004",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Sonido Muchacho",
+  "nb_tracks": 10,
+  "duration": 2105,
+  "fans": 62,
+  "release_date": "2026-10-09",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 12,
+   "name": "LA MILAGROSA",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/12/albums": {
+  "data": [
+   {
+    "id": 1004,
+    "title": "NECESITO ESTÍMULOS",
+    "link": "https://www.deezer.com/album/1004",
+    "cover": "https://api.deezer.com/album/1004/image",
+    "genre_id": 85,
+    "fans": 62,
+    "release_date": "2026-10-09",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1004/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1005": {
+  "id": 1005,
+  "title": "Poor Advice",
+  "upc": "01005000000",
+  "link": "https://www.deezer.com/album/1005",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Ooh La Records",
+  "nb_tracks": 11,
+  "duration": 2490,
+  "fans": 164,
+  "release_date": "2026-10-09",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 13,
+   "name": "Basht.",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/13/albums": {
+  "data": [
+   {
+    "id": 1005,
+    "title": "Poor Advice",
+    "link": "https://www.deezer.com/album/1005",
+    "cover": "https://api.deezer.com/album/1005/image",
+    "genre_id": 85,
+    "fans": 164,
+    "release_date": "2026-10-09",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1005/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1006": {
+  "id": 1006,
+  "title": "DISONANCIA",
+  "upc": "01006000000",
+  "link": "https://www.deezer.com/album/1006",
+  "genre_id": 132,
+  "genres": {
+   "data": [
+    {
+     "id": 132,
+     "name": "Pop",
+     "picture": "https://api.deezer.com/genre/132/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Universal Music Spain",
+  "nb_tracks": 11,
+  "duration": 2650,
+  "fans": 2420,
+  "release_date": "2026-10-15",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 14,
+   "name": "Lori Meyers",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/album/1007": {
+  "id": 1007,
+  "title": "Espejos",
+  "upc": "01007000000",
+  "link": "https://www.deezer.com/album/1007",
+  "genre_id": 132,
+  "genres": {
+   "data": [
+    {
+     "id": 132,
+     "name": "Pop",
+     "picture": "https://api.deezer.com/genre/132/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Universal Music Spain",
+  "nb_tracks": 1,
+  "duration": 230,
+  "fans": 2420,
+  "release_date": "2026-10-15",
+  "record_type": "single",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 14,
+   "name": "Lori Meyers",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/14/albums": {
+  "data": [
+   {
+    "id": 1006,
+    "title": "DISONANCIA",
+    "link": "https://www.deezer.com/album/1006",
+    "cover": "https://api.deezer.com/album/1006/image",
+    "genre_id": 132,
+    "fans": 2420,
+    "release_date": "2026-10-15",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1006/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   },
+   {
+    "id": 1007,
+    "title": "Espejos",
+    "link": "https://www.deezer.com/album/1007",
+    "cover": "https://api.deezer.com/album/1007/image",
+    "genre_id": 132,
+    "fans": 2420,
+    "release_date": "2026-10-15",
+    "record_type": "single",
+    "tracklist": "https://api.deezer.com/album/1007/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 2
+ },
+ "/album/1008": {
+  "id": 1008,
+  "title": "Dopamine Chamber",
+  "upc": "01008000000",
+  "link": "https://www.deezer.com/album/1008",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "XL Recordings",
+  "nb_tracks": 11,
+  "duration": 2580,
+  "fans": 8200,
+  "release_date": "2026-10-16",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 15,
+   "name": "Fontaines D.C.",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/album/1009": {
+  "id": 1009,
+  "title": "Dopamine Chamber",
+  "upc": "01009000000",
+  "link": "https://www.deezer.com/album/1009",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "XL Recordings",
+  "nb_tracks": 1,
+  "duration": 201,
+  "fans": 8200,
+  "release_date": "2026-08-20",
+  "record_type": "single",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 15,
+   "name": "Fontaines D.C.",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/album/1010": {
+  "id": 1010,
+  "title": "Romance",
+  "upc": "01010000000",
+  "link": "https://www.deezer.com/album/1010",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "XL Recordings",
+  "nb_tracks": 11,
+  "duration": 2240,
+  "fans": 8200,
+  "release_date": "2024-08-23",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 15,
+   "name": "Fontaines D.C.",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/15/albums": {
+  "data": [
+   {
+    "id": 1008,
+    "title": "Dopamine Chamber",
+    "link": "https://www.deezer.com/album/1008",
+    "cover": "https://api.deezer.com/album/1008/image",
+    "genre_id": 85,
+    "fans": 8200,
+    "release_date": "2026-10-16",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1008/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   },
+   {
+    "id": 1009,
+    "title": "Dopamine Chamber",
+    "link": "https://www.deezer.com/album/1009",
+    "cover": "https://api.deezer.com/album/1009/image",
+    "genre_id": 85,
+    "fans": 8200,
+    "release_date": "2026-08-20",
+    "record_type": "single",
+    "tracklist": "https://api.deezer.com/album/1009/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   },
+   {
+    "id": 1010,
+    "title": "Romance",
+    "link": "https://www.deezer.com/album/1010",
+    "cover": "https://api.deezer.com/album/1010/image",
+    "genre_id": 85,
+    "fans": 8200,
+    "release_date": "2024-08-23",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1010/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 3
+ },
+ "/album/1011": {
+  "id": 1011,
+  "title": "NADA PUEDE HACERNOS MAL",
+  "upc": "01011000000",
+  "link": "https://www.deezer.com/album/1011",
+  "genre_id": 132,
+  "genres": {
+   "data": [
+    {
+     "id": 132,
+     "name": "Pop",
+     "picture": "https://api.deezer.com/genre/132/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "La 126",
+  "nb_tracks": 10,
+  "duration": 2010,
+  "fans": 308,
+  "release_date": "2026-10-23",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 16,
+   "name": "La 126",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/16/albums": {
+  "data": [
+   {
+    "id": 1011,
+    "title": "NADA PUEDE HACERNOS MAL",
+    "link": "https://www.deezer.com/album/1011",
+    "cover": "https://api.deezer.com/album/1011/image",
+    "genre_id": 132,
+    "fans": 308,
+    "release_date": "2026-10-23",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1011/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1012": {
+  "id": 1012,
+  "title": "Mientras el Guadalquivir fluye y fluye y fluye",
+  "upc": "01012000000",
+  "link": "https://www.deezer.com/album/1012",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Aloud Music",
+  "nb_tracks": 9,
+  "duration": 2400,
+  "fans": 402,
+  "release_date": "2026-10-23",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 17,
+   "name": "Viva Belgrado",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/17/albums": {
+  "data": [
+   {
+    "id": 1012,
+    "title": "Mientras el Guadalquivir fluye y fluye y fluye",
+    "link": "https://www.deezer.com/album/1012",
+    "cover": "https://api.deezer.com/album/1012/image",
+    "genre_id": 152,
+    "fans": 402,
+    "release_date": "2026-10-23",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1012/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1013": {
+  "id": 1013,
+  "title": "Bravos",
+  "upc": "01013000000",
+  "link": "https://www.deezer.com/album/1013",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Subterfuge",
+  "nb_tracks": 8,
+  "duration": 1860,
+  "fans": 50,
+  "release_date": "2026-10-23",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 18,
+   "name": "Niños",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/18/albums": {
+  "data": [
+   {
+    "id": 1013,
+    "title": "Bravos",
+    "link": "https://www.deezer.com/album/1013",
+    "cover": "https://api.deezer.com/album/1013/image",
+    "genre_id": 85,
+    "fans": 50,
+    "release_date": "2026-10-23",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1013/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1014": {
+  "id": 1014,
+  "title": "Canciones para bailar",
+  "upc": "01014000000",
+  "link": "https://www.deezer.com/album/1014",
+  "genre_id": 95,
+  "genres": {
+   "data": [
+    {
+     "id": 95,
+     "name": "Kids",
+     "picture": "https://api.deezer.com/genre/95/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Pequeño Sello",
+  "nb_tracks": 20,
+  "duration": 2900,
+  "fans": 1800,
+  "release_date": "2026-10-10",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 19,
+   "name": "Niños",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/19/albums": {
+  "data": [
+   {
+    "id": 1014,
+    "title": "Canciones para bailar",
+    "link": "https://www.deezer.com/album/1014",
+    "cover": "https://api.deezer.com/album/1014/image",
+    "genre_id": 95,
+    "fans": 1800,
+    "release_date": "2026-10-10",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1014/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1015": {
+  "id": 1015,
+  "title": "do you love the color of the sky?",
+  "upc": "01015000000",
+  "link": "https://www.deezer.com/album/1015",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Trouble in Mind",
+  "nb_tracks": 10,
+  "duration": 2350,
+  "fans": 180,
+  "release_date": "2026-10-16",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 20,
+   "name": "Dummy",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/20/albums": {
+  "data": [
+   {
+    "id": 1015,
+    "title": "do you love the color of the sky?",
+    "link": "https://www.deezer.com/album/1015",
+    "cover": "https://api.deezer.com/album/1015/image",
+    "genre_id": 85,
+    "fans": 180,
+    "release_date": "2026-10-16",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1015/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1016": {
+  "id": 1016,
+  "title": "Target Practice",
+  "upc": "01016000000",
+  "link": "https://www.deezer.com/album/1016",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Bar/None Records",
+  "nb_tracks": 12,
+  "duration": 1980,
+  "fans": 80,
+  "release_date": "2026-10-16",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 21,
+   "name": "Pardoner",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/21/albums": {
+  "data": [
+   {
+    "id": 1016,
+    "title": "Target Practice",
+    "link": "https://www.deezer.com/album/1016",
+    "cover": "https://api.deezer.com/album/1016/image",
+    "genre_id": 152,
+    "fans": 80,
+    "release_date": "2026-10-16",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1016/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1017": {
+  "id": 1017,
+  "title": "moisturizer (deluxe)",
+  "upc": "01017000000",
+  "link": "https://www.deezer.com/album/1017",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Domino",
+  "nb_tracks": 16,
+  "duration": 3300,
+  "fans": 6000,
+  "release_date": "2026-10-10",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 22,
+   "name": "Wet Leg",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/album/1018": {
+  "id": 1018,
+  "title": "moisturizer",
+  "upc": "01018000000",
+  "link": "https://www.deezer.com/album/1018",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Domino",
+  "nb_tracks": 12,
+  "duration": 2350,
+  "fans": 6000,
+  "release_date": "2025-07-11",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 22,
+   "name": "Wet Leg",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/22/albums": {
+  "data": [
+   {
+    "id": 1017,
+    "title": "moisturizer (deluxe)",
+    "link": "https://www.deezer.com/album/1017",
+    "cover": "https://api.deezer.com/album/1017/image",
+    "genre_id": 85,
+    "fans": 6000,
+    "release_date": "2026-10-10",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1017/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   },
+   {
+    "id": 1018,
+    "title": "moisturizer",
+    "link": "https://www.deezer.com/album/1018",
+    "cover": "https://api.deezer.com/album/1018/image",
+    "genre_id": 85,
+    "fans": 6000,
+    "release_date": "2025-07-11",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1018/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 2
+ },
+ "/album/1019": {
+  "id": 1019,
+  "title": "Crispy Skin (Remixes)",
+  "upc": "01019000000",
+  "link": "https://www.deezer.com/album/1019",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Warp",
+  "nb_tracks": 4,
+  "duration": 1300,
+  "fans": 1200,
+  "release_date": "2026-10-03",
+  "record_type": "ep",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 23,
+   "name": "Squid",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/23/albums": {
+  "data": [
+   {
+    "id": 1019,
+    "title": "Crispy Skin (Remixes)",
+    "link": "https://www.deezer.com/album/1019",
+    "cover": "https://api.deezer.com/album/1019/image",
+    "genre_id": 85,
+    "fans": 1200,
+    "release_date": "2026-10-03",
+    "record_type": "ep",
+    "tracklist": "https://api.deezer.com/album/1019/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1020": {
+  "id": 1020,
+  "title": "Grace (Remix)",
+  "upc": "01020000000",
+  "link": "https://www.deezer.com/album/1020",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Partisan Records",
+  "nb_tracks": 1,
+  "duration": 250,
+  "fans": 7000,
+  "release_date": "2026-10-17",
+  "record_type": "single",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 24,
+   "name": "IDLES",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/24/albums": {
+  "data": [
+   {
+    "id": 1020,
+    "title": "Grace (Remix)",
+    "link": "https://www.deezer.com/album/1020",
+    "cover": "https://api.deezer.com/album/1020/image",
+    "genre_id": 152,
+    "fans": 7000,
+    "release_date": "2026-10-17",
+    "record_type": "single",
+    "tracklist": "https://api.deezer.com/album/1020/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1021": {
+  "id": 1021,
+  "title": "Tres canciones",
+  "upc": "01021000000",
+  "link": "https://www.deezer.com/album/1021",
+  "genre_id": 132,
+  "genres": {
+   "data": [
+    {
+     "id": 132,
+     "name": "Pop",
+     "picture": "https://api.deezer.com/genre/132/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Sonido Muchacho",
+  "nb_tracks": 3,
+  "duration": 560,
+  "fans": 1800,
+  "release_date": "2026-10-20",
+  "record_type": "ep",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 25,
+   "name": "Carolina Durante",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/25/albums": {
+  "data": [
+   {
+    "id": 1021,
+    "title": "Tres canciones",
+    "link": "https://www.deezer.com/album/1021",
+    "cover": "https://api.deezer.com/album/1021/image",
+    "genre_id": 132,
+    "fans": 1800,
+    "release_date": "2026-10-20",
+    "record_type": "ep",
+    "tracklist": "https://api.deezer.com/album/1021/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1022": {
+  "id": 1022,
+  "title": "Pugnello",
+  "upc": "01022000000",
+  "link": "https://www.deezer.com/album/1022",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Rough Trade",
+  "nb_tracks": 10,
+  "duration": 2300,
+  "fans": 600,
+  "release_date": "2026-09-25",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 31,
+   "name": "Gilla Band",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/31/albums": {
+  "data": [
+   {
+    "id": 1022,
+    "title": "Pugnello",
+    "link": "https://www.deezer.com/album/1022",
+    "cover": "https://api.deezer.com/album/1022/image",
+    "genre_id": 152,
+    "fans": 600,
+    "release_date": "2026-09-25",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1022/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1023": {
+  "id": 1023,
+  "title": "Nobody's Coming To Save You",
+  "upc": "01023000000",
+  "link": "https://www.deezer.com/album/1023",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Fear Of Missing Out",
+  "nb_tracks": 11,
+  "duration": 2400,
+  "fans": 240,
+  "release_date": "2026-09-25",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 32,
+   "name": "Gurriers",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/32/albums": {
+  "data": [
+   {
+    "id": 1023,
+    "title": "Nobody's Coming To Save You",
+    "link": "https://www.deezer.com/album/1023",
+    "cover": "https://api.deezer.com/album/1023/image",
+    "genre_id": 152,
+    "fans": 240,
+    "release_date": "2026-09-25",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1023/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1024": {
+  "id": 1024,
+  "title": "Adult DVD",
+  "upc": "01024000000",
+  "link": "https://www.deezer.com/album/1024",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Lucky Number",
+  "nb_tracks": 10,
+  "duration": 2100,
+  "fans": 140,
+  "release_date": "2026-09-25",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 33,
+   "name": "Adult DVD",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/33/albums": {
+  "data": [
+   {
+    "id": 1024,
+    "title": "Adult DVD",
+    "link": "https://www.deezer.com/album/1024",
+    "cover": "https://api.deezer.com/album/1024/image",
+    "genre_id": 85,
+    "fans": 140,
+    "release_date": "2026-09-25",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1024/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1025": {
+  "id": 1025,
+  "title": "Señales Brutales",
+  "upc": "01025000000",
+  "link": "https://www.deezer.com/album/1025",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Elefant Records",
+  "nb_tracks": 11,
+  "duration": 2050,
+  "fans": 600,
+  "release_date": "2026-09-25",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 34,
+   "name": "Aiko el grupo",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/34/albums": {
+  "data": [
+   {
+    "id": 1025,
+    "title": "Señales Brutales",
+    "link": "https://www.deezer.com/album/1025",
+    "cover": "https://api.deezer.com/album/1025/image",
+    "genre_id": 152,
+    "fans": 600,
+    "release_date": "2026-09-25",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1025/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1026": {
+  "id": 1026,
+  "title": "Act 3",
+  "upc": "01026000000",
+  "link": "https://www.deezer.com/album/1026",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Columbia",
+  "nb_tracks": 12,
+  "duration": 2600,
+  "fans": 18000,
+  "release_date": "2026-09-19",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 35,
+   "name": "Kasabian",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/35/albums": {
+  "data": [
+   {
+    "id": 1026,
+    "title": "Act 3",
+    "link": "https://www.deezer.com/album/1026",
+    "cover": "https://api.deezer.com/album/1026/image",
+    "genre_id": 152,
+    "fans": 18000,
+    "release_date": "2026-09-19",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1026/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1027": {
+  "id": 1027,
+  "title": "Anatomy of a Brief Romance",
+  "upc": "01027000000",
+  "link": "https://www.deezer.com/album/1027",
+  "genre_id": 85,
+  "genres": {
+   "data": [
+    {
+     "id": 85,
+     "name": "Alternative",
+     "picture": "https://api.deezer.com/genre/85/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "BMG",
+  "nb_tracks": 11,
+  "duration": 2500,
+  "fans": 14000,
+  "release_date": "2026-09-12",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 36,
+   "name": "Bloc Party",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/36/albums": {
+  "data": [
+   {
+    "id": 1027,
+    "title": "Anatomy of a Brief Romance",
+    "link": "https://www.deezer.com/album/1027",
+    "cover": "https://api.deezer.com/album/1027/image",
+    "genre_id": 85,
+    "fans": 14000,
+    "release_date": "2026-09-12",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1027/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1028": {
+  "id": 1028,
+  "title": "Hotel Usona",
+  "upc": "01028000000",
+  "link": "https://www.deezer.com/album/1028",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Domino",
+  "nb_tracks": 12,
+  "duration": 2700,
+  "fans": 1600,
+  "release_date": "2026-09-26",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 37,
+   "name": "Protomartyr",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/37/albums": {
+  "data": [
+   {
+    "id": 1028,
+    "title": "Hotel Usona",
+    "link": "https://www.deezer.com/album/1028",
+    "cover": "https://api.deezer.com/album/1028/image",
+    "genre_id": 152,
+    "fans": 1600,
+    "release_date": "2026-09-26",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1028/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1029": {
+  "id": 1029,
+  "title": "Truth or Consequence (Live from El Coyote)",
+  "upc": "01029000000",
+  "link": "https://www.deezer.com/album/1029",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Rough Trade",
+  "nb_tracks": 14,
+  "duration": 3100,
+  "fans": 4000,
+  "release_date": "2026-09-19",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 38,
+   "name": "Amyl and The Sniffers",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/38/albums": {
+  "data": [
+   {
+    "id": 1029,
+    "title": "Truth or Consequence (Live from El Coyote)",
+    "link": "https://www.deezer.com/album/1029",
+    "cover": "https://api.deezer.com/album/1029/image",
+    "genre_id": 152,
+    "fans": 4000,
+    "release_date": "2026-09-19",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1029/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 1
+ },
+ "/album/1030": {
+  "id": 1030,
+  "title": "viagr aboys (Japanese Deluxe Edition)",
+  "upc": "01030000000",
+  "link": "https://www.deezer.com/album/1030",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Shrimptech",
+  "nb_tracks": 14,
+  "duration": 2900,
+  "fans": 5000,
+  "release_date": "2026-09-12",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 39,
+   "name": "Viagra Boys",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/album/1031": {
+  "id": 1031,
+  "title": "viagr aboys",
+  "upc": "01031000000",
+  "link": "https://www.deezer.com/album/1031",
+  "genre_id": 152,
+  "genres": {
+   "data": [
+    {
+     "id": 152,
+     "name": "Rock",
+     "picture": "https://api.deezer.com/genre/152/image",
+     "type": "genre"
+    }
+   ]
+  },
+  "label": "Shrimptech",
+  "nb_tracks": 12,
+  "duration": 2500,
+  "fans": 5000,
+  "release_date": "2025-04-04",
+  "record_type": "album",
+  "available": true,
+  "explicit_lyrics": false,
+  "artist": {
+   "id": 39,
+   "name": "Viagra Boys",
+   "type": "artist"
+  },
+  "type": "album"
+ },
+ "/artist/39/albums": {
+  "data": [
+   {
+    "id": 1030,
+    "title": "viagr aboys (Japanese Deluxe Edition)",
+    "link": "https://www.deezer.com/album/1030",
+    "cover": "https://api.deezer.com/album/1030/image",
+    "genre_id": 152,
+    "fans": 5000,
+    "release_date": "2026-09-12",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1030/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   },
+   {
+    "id": 1031,
+    "title": "viagr aboys",
+    "link": "https://www.deezer.com/album/1031",
+    "cover": "https://api.deezer.com/album/1031/image",
+    "genre_id": 152,
+    "fans": 5000,
+    "release_date": "2025-04-04",
+    "record_type": "album",
+    "tracklist": "https://api.deezer.com/album/1031/tracks",
+    "explicit_lyrics": false,
+    "type": "album"
+   }
+  ],
+  "total": 2
+ },
+ "/search/artist?q=Arde Bogotá": {
+  "data": [
+   {
+    "id": 11,
+    "name": "Arde Bogotá",
+    "link": "https://www.deezer.com/artist/11",
+    "picture": "https://api.deezer.com/artist/11/image",
+    "nb_album": 3,
+    "nb_fan": 250000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/11/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=LA MILAGROSA": {
+  "data": [
+   {
+    "id": 12,
+    "name": "LA MILAGROSA",
+    "link": "https://www.deezer.com/artist/12",
+    "picture": "https://api.deezer.com/artist/12/image",
+    "nb_album": 1,
+    "nb_fan": 3100,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/12/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Basht.": {
+  "data": [
+   {
+    "id": 13,
+    "name": "Basht.",
+    "link": "https://www.deezer.com/artist/13",
+    "picture": "https://api.deezer.com/artist/13/image",
+    "nb_album": 1,
+    "nb_fan": 8200,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/13/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Lori Meyers": {
+  "data": [
+   {
+    "id": 14,
+    "name": "Lori Meyers",
+    "link": "https://www.deezer.com/artist/14",
+    "picture": "https://api.deezer.com/artist/14/image",
+    "nb_album": 2,
+    "nb_fan": 121000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/14/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Fontaines D.C.": {
+  "data": [
+   {
+    "id": 15,
+    "name": "Fontaines D.C.",
+    "link": "https://www.deezer.com/artist/15",
+    "picture": "https://api.deezer.com/artist/15/image",
+    "nb_album": 3,
+    "nb_fan": 410000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/15/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=La 126": {
+  "data": [
+   {
+    "id": 16,
+    "name": "La 126",
+    "link": "https://www.deezer.com/artist/16",
+    "picture": "https://api.deezer.com/artist/16/image",
+    "nb_album": 1,
+    "nb_fan": 15400,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/16/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Viva Belgrado": {
+  "data": [
+   {
+    "id": 17,
+    "name": "Viva Belgrado",
+    "link": "https://www.deezer.com/artist/17",
+    "picture": "https://api.deezer.com/artist/17/image",
+    "nb_album": 1,
+    "nb_fan": 20100,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/17/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Niños": {
+  "data": [
+   {
+    "id": 18,
+    "name": "Niños",
+    "link": "https://www.deezer.com/artist/18",
+    "picture": "https://api.deezer.com/artist/18/image",
+    "nb_album": 1,
+    "nb_fan": 2500,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/18/top?limit=50",
+    "type": "artist"
+   },
+   {
+    "id": 19,
+    "name": "Niños",
+    "link": "https://www.deezer.com/artist/19",
+    "picture": "https://api.deezer.com/artist/19/image",
+    "nb_album": 1,
+    "nb_fan": 90000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/19/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 2
+ },
+ "/search/artist?q=Dummy": {
+  "data": [
+   {
+    "id": 20,
+    "name": "Dummy",
+    "link": "https://www.deezer.com/artist/20",
+    "picture": "https://api.deezer.com/artist/20/image",
+    "nb_album": 1,
+    "nb_fan": 9000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/20/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Pardoner": {
+  "data": [
+   {
+    "id": 21,
+    "name": "Pardoner",
+    "link": "https://www.deezer.com/artist/21",
+    "picture": "https://api.deezer.com/artist/21/image",
+    "nb_album": 1,
+    "nb_fan": 4000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/21/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Wet Leg": {
+  "data": [
+   {
+    "id": 22,
+    "name": "Wet Leg",
+    "link": "https://www.deezer.com/artist/22",
+    "picture": "https://api.deezer.com/artist/22/image",
+    "nb_album": 2,
+    "nb_fan": 300000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/22/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Squid": {
+  "data": [
+   {
+    "id": 23,
+    "name": "Squid",
+    "link": "https://www.deezer.com/artist/23",
+    "picture": "https://api.deezer.com/artist/23/image",
+    "nb_album": 1,
+    "nb_fan": 60000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/23/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=IDLES": {
+  "data": [
+   {
+    "id": 24,
+    "name": "IDLES",
+    "link": "https://www.deezer.com/artist/24",
+    "picture": "https://api.deezer.com/artist/24/image",
+    "nb_album": 1,
+    "nb_fan": 350000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/24/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Carolina Durante": {
+  "data": [
+   {
+    "id": 25,
+    "name": "Carolina Durante",
+    "link": "https://www.deezer.com/artist/25",
+    "picture": "https://api.deezer.com/artist/25/image",
+    "nb_album": 1,
+    "nb_fan": 90000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/25/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Gilla Band": {
+  "data": [
+   {
+    "id": 31,
+    "name": "Gilla Band",
+    "link": "https://www.deezer.com/artist/31",
+    "picture": "https://api.deezer.com/artist/31/image",
+    "nb_album": 1,
+    "nb_fan": 30000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/31/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Gurriers": {
+  "data": [
+   {
+    "id": 32,
+    "name": "Gurriers",
+    "link": "https://www.deezer.com/artist/32",
+    "picture": "https://api.deezer.com/artist/32/image",
+    "nb_album": 1,
+    "nb_fan": 12000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/32/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Adult DVD": {
+  "data": [
+   {
+    "id": 33,
+    "name": "Adult DVD",
+    "link": "https://www.deezer.com/artist/33",
+    "picture": "https://api.deezer.com/artist/33/image",
+    "nb_album": 1,
+    "nb_fan": 7000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/33/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Aiko el grupo": {
+  "data": [
+   {
+    "id": 34,
+    "name": "Aiko el grupo",
+    "link": "https://www.deezer.com/artist/34",
+    "picture": "https://api.deezer.com/artist/34/image",
+    "nb_album": 1,
+    "nb_fan": 30000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/34/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Kasabian": {
+  "data": [
+   {
+    "id": 35,
+    "name": "Kasabian",
+    "link": "https://www.deezer.com/artist/35",
+    "picture": "https://api.deezer.com/artist/35/image",
+    "nb_album": 1,
+    "nb_fan": 900000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/35/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Bloc Party": {
+  "data": [
+   {
+    "id": 36,
+    "name": "Bloc Party",
+    "link": "https://www.deezer.com/artist/36",
+    "picture": "https://api.deezer.com/artist/36/image",
+    "nb_album": 1,
+    "nb_fan": 700000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/36/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Protomartyr": {
+  "data": [
+   {
+    "id": 37,
+    "name": "Protomartyr",
+    "link": "https://www.deezer.com/artist/37",
+    "picture": "https://api.deezer.com/artist/37/image",
+    "nb_album": 1,
+    "nb_fan": 80000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/37/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Amyl and The Sniffers": {
+  "data": [
+   {
+    "id": 38,
+    "name": "Amyl and The Sniffers",
+    "link": "https://www.deezer.com/artist/38",
+    "picture": "https://api.deezer.com/artist/38/image",
+    "nb_album": 1,
+    "nb_fan": 200000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/38/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Viagra Boys": {
+  "data": [
+   {
+    "id": 39,
+    "name": "Viagra Boys",
+    "link": "https://www.deezer.com/artist/39",
+    "picture": "https://api.deezer.com/artist/39/image",
+    "nb_album": 2,
+    "nb_fan": 250000,
+    "radio": true,
+    "tracklist": "https://api.deezer.com/artist/39/top?limit=50",
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Las Petunias": {
+  "data": [
+   {
+    "id": 99,
+    "name": "Mala Gestión",
+    "nb_fan": 4000,
+    "nb_album": 3,
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ },
+ "/search/artist?q=Biznaga": {
+  "data": [],
+  "total": 0
+ },
+ "/search/artist?q=Aiko": {
+  "data": [
+   {
+    "id": 34,
+    "name": "Aiko el grupo",
+    "nb_fan": 30000,
+    "nb_album": 4,
+    "type": "artist"
+   }
+  ],
+  "total": 1
+ }
+}
