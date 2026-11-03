@@ -532,9 +532,14 @@ def calcular(mes: str, sf, lf, dz: DeezerClient, mb, kexp, calendarios,
     cal_antes = getattr(calendarios, "peticiones", 0)
 
     # 1) artistas
-    artistas = cache.recordar(
-        f"novedades_mes:candidatos:{min_escuchas}", TTL_CANDIDATOS,
-        lambda: reunir_artistas(sf, lf, biblioteca, vetados, min_escuchas, paso, avisos))
+    # Se guarda un día, pero solo si stats.fm respondió: un historial vacío
+    # por un fallo puntual no debe dejar el rastreo cojo 24 horas.
+    clave_cache = f"novedades_mes:candidatos:{min_escuchas}"
+    hay, artistas = cache.obtener(clave_cache, TTL_CANDIDATOS)
+    if not hay:
+        artistas = reunir_artistas(sf, lf, biblioteca, vetados, min_escuchas, paso, avisos)
+        if any(c["escuchas"]["total"] for c in artistas.values()):
+            cache.guardar(clave_cache, artistas)
     artistas = {k: dict(v, fuentes_externas={}) for k, v in artistas.items()}
     for k in [k for k, c in artistas.items() if norm(c["nombre"]) in vetados]:
         artistas.pop(k)
