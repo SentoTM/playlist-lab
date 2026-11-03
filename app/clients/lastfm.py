@@ -25,7 +25,10 @@ class LastfmClient:
         self.username = username
         self._http = httpx.Client(timeout=20)
 
+    peticiones = 0   # contador compartido, para decir cuánto cuesta cada herramienta
+
     def _get(self, method: str, **params) -> dict:
+        type(self).peticiones += 1
         resp = self._http.get(API, params={
             "method": method, "api_key": self.api_key, "format": "json", **params,
         })

@@ -93,3 +93,42 @@ class StatsfmClient:
                 "genres": list(artist.get("genres") or []),
             })
         return [a for a in out if a["name"]]
+
+    def top_artists_todos(self, range_: str = "lifetime", min_streams: int = 10,
+                          pagina: int = 300, max_artistas: int = 3000) -> list[dict]:
+        """TODOS los artistas del historial con al menos `min_streams` escuchas.
+
+        Los tops normales se quedan en los 50-300 primeros, y para rastrear
+        novedades hace falta la cola larga: el grupo que escuchó 15 veces
+        también puede sacar disco. Se pagina con `offset` y se para cuando
+        las escuchas bajan del mínimo (vienen ordenados de más a menos), la
+        página viene corta o stats.fm repite la página (si un día ignora el
+        offset, mejor parar que dar vueltas).
+        """
+        out: list[dict] = []
+        vistos: set[str] = set()
+        offset = 0
+        while offset < max_artistas:
+            data = self._get(f"/users/{self.username}/top/artists",
+                             range=range_, limit=pagina, offset=offset)
+            items = (data or {}).get("items") or []
+            nuevos = 0
+            for item in items:
+                artist = item.get("artist") or {}
+                nombre = artist.get("name") or ""
+                streams = item.get("streams") or 0
+                if not nombre or nombre in vistos:
+                    continue
+                vistos.add(nombre)
+                nuevos += 1
+                if streams < min_streams:
+                    continue
+                ext = artist.get("externalIds") or {}
+                out.append({"name": nombre, "streams": streams,
+                            "spotify_id": (ext.get("spotify") or [None])[0],
+                            "genres": list(artist.get("genres") or [])})
+            ultimo = (items[-1].get("streams") or 0) if items else 0
+            if not items or nuevos == 0 or len(items) < pagina or ultimo < min_streams:
+                break
+            offset += len(items)
+        return out

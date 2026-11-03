@@ -16,6 +16,8 @@ HEADERS = {"User-Agent": "playlist-lab/0.2 (uso personal; https://github.com/Sen
 
 
 class MusicbrainzClient:
+    peticiones = 0   # para que cada herramienta pueda decir cuánto le costó
+
     def __init__(self):
         self._http = httpx.Client(timeout=20, headers=HEADERS)
         self._lock = threading.Lock()
@@ -28,6 +30,7 @@ class MusicbrainzClient:
             if wait > 0:
                 time.sleep(wait)
             self._last = time.monotonic()
+            type(self).peticiones += 1
         try:
             resp = self._http.get(f"{API}{path}", params={"fmt": "json", **params})
             if resp.status_code != 200:
@@ -193,6 +196,37 @@ class MusicbrainzClient:
             out.append({"artist": credito or artist, "album": rg.get("title"),
                         "fecha": fecha, "tipo": rg.get("primary-type")})
         out.sort(key=lambda r: r["fecha"], reverse=True)
+        return out
+
+    def lanzamientos_entre(self, artist: str, inicio: str, fin: str) -> list[dict]:
+        """Álbumes y EPs de un artista con primera edición entre dos fechas.
+
+        A diferencia de recent_by_artist, solo cuenta lo acreditado a ESE
+        nombre (normalizado): con un score de 70, "Niños" casaba con
+        cualquier "Niños Mutantes" o "Niños del Brasil". Trae también los
+        subtipos (directo, recopilatorio…) para que el filtro los descarte
+        diciendo por qué, en vez de que desaparezcan sin rastro.
+        """
+        from ..text import clave
+        data = self._get("/release-group",
+                         query=(f'artist:"{artist}" AND '
+                                f'firstreleasedate:[{inicio} TO {fin}]'),
+                         limit=25)
+        buscada = clave(artist)
+        out = []
+        for rg in data.get("release-groups", []):
+            credito = "".join((c.get("name") or "") + (c.get("joinphrase") or "")
+                              for c in (rg.get("artist-credit") or [])
+                              if isinstance(c, dict))
+            if clave(credito) != buscada:
+                continue
+            fecha = rg.get("first-release-date") or ""
+            if not (inicio <= fecha[:10] <= fin):
+                continue
+            out.append({"artist": credito or artist, "album": rg.get("title"),
+                        "fecha": fecha, "tipo": rg.get("primary-type"),
+                        "subtipos": rg.get("secondary-types") or [],
+                        "mbid": rg.get("id")})
         return out
 
     def releases_by_tag(self, tag: str, year_from: int | None = None,
