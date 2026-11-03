@@ -2,13 +2,109 @@
 
 Notas para retomar sin releer todo el historial. Actualizar al cerrar cada sesión.
 
-_Última actualización: 23 de septiembre de 2026._
+_Última actualización: 3 de noviembre de 2026._
 
 ## Dónde estamos
 
 Playlist Lab ya no recomienda por reglas: es la capa de datos y ejecución para
-que una IA (Claude Desktop, vía MCP) cure la música. 22 herramientas y 2
-prompts. La web solo sirve para el login de Spotify y para ver el perfil.
+que una IA (Claude, vía MCP) cure la música. 53 herramientas y 3 prompts,
+desplegado en Railway como conector remoto con login de GitHub. La web solo
+sirve para el login de Spotify y para ver el perfil.
+
+## Octubre y noviembre de 2026: lo que NO está en el código
+
+Casi todo lo de estos dos meses vive en los prompts de las tareas
+programadas de claude.ai, no aquí (se hizo en sesiones de código/Cowork):
+
+- **Semana musical · a fuego lento** (domingos 15:30): una lista por semana
+  "A fuego lento · AAAA-MM-DD · título" con 3 discos (ancla, contexto,
+  salida), 5-8 lazos y una semilla; ciclo de 4 semanas (descubrir,
+  profundizar, péndulo, cierre) con el estado en la descripción de la última
+  lista; el reloj se para si la anterior está sin tocar. Carta de 450-700
+  palabras desde su Gmail a sí mismo y una push corta. Las ejecuciones
+  manuales que piden "degustación" crean "Degustación · …" fuera del ciclo.
+- **Novedades del mes** (día 1, 10:17): lista "Novedades · <Mes> <AAAA>" con
+  los discos del mes anterior, solo del mes natural. Hasta ahora tiraba de
+  artist_releases: ver abajo.
+- **Revisión setlist Muse** (día 15) para el concierto de Valencia
+  (23 ene. 2027).
+
+## monthly_releases (3 nov.): novedades del mes sin tocar Spotify
+
+El 3 de noviembre, unas 45 llamadas seguidas a `artist_releases` desde la
+tarea de novedades bastaron para que Spotify bloqueara la app 24 h (pidió
+esperar ~86.000 s). Y `new_releases`, que no gasta cuota, solo mira ~24
+artistas en MusicBrainz: para sep.-oct. solo encontró a Fontaines D.C. y se
+dejó a Lori Meyers, La 126, Viva Belgrado, La Milagrosa, Niños, Arde Bogotá…
+
+`monthly_releases(mes, limite, min_escuchas)` (app/novedades_mes.py):
+
+1. **Candidatos** sin Spotify: todo el historial de stats.fm paginado
+   (≥ 10 escuchas o ≥ 3 en seis meses), Last.fm 12month/overall, la
+   biblioteca solo si está en caché, y los vecinos de Last.fm (match ≥ 0,35)
+   de los 50 que más suenan en seis meses ("órbita"). Vetados fuera.
+2. **Lanzamientos en Deezer** (app/clients/deezer.py): gratis, sin clave,
+   buen catálogo español. Ojo: su error de cuota es un 200 con
+   `{"error": {"code": 4}}`, no un 429. Ritmo de 45 cada 5 s, reintentos y
+   caché propia en `datos/deezer.json` (id para siempre, discos 7 días pero
+   refrescados si se guardaron antes del fin del mes pedido, fichas 30).
+   Homónimos: se miran todos los que se llaman igual y gana el de género
+   compatible ("Niños" el grupo frente a "Niños" infantil).
+3. **MusicBrainz de respaldo** solo para los tuyos que Deezer no tiene
+   (tope de 120 peticiones por ejecución: va a 1/s).
+4. **Filtro**: álbumes y EPs de 4+ canciones del mes natural. Singles se
+   cuentan; directos, remezclas, deluxes/japonesas, reediciones (mismo
+   título base que un disco anterior, sin contar el single adelanto),
+   recopilatorios y bandas sonoras van a `descartados` con su motivo.
+5. **Fuentes del mes**: radar, prensa archivada (solo avala si cita artista
+   Y título), KEXP del disco y calendarios (app/clients/calendarios.py: Dod
+   Magazine, Binaural, Bandcamp Daily, y páginas a mano en
+   `datos/calendarios.json`). Es scraping: cada uno falla por separado con
+   aviso. Lo que solo sale de ahí pasa por vet_candidates y tus géneros.
+6. **Puntos**: escuchas (3× las de seis meses + las de siempre), afinidad de
+   géneros, avales independientes y álbum > EP; los dudosos restan. Cada
+   disco trae su frase de porqué.
+
+Va en segundo plano (`vuelve_a_llamar`). `estadisticas.peticiones_a_spotify`
+debe salir 0 (cuenta el contador global: si a la vez otra herramienta usa
+Spotify, saldrá lo de esa).
+
+Tests sin red: `python -m unittest discover -s tests`. Las fixtures de
+Deezer/MusicBrainz se hicieron con el formato real de esas APIs (desde la
+sesión de desarrollo no había red hacia ellas). `python
+scripts/grabar_fixtures.py` graba respuestas reales en
+`tests/fixtures/deezer_real.json` y activa `TestAceptacionReal`.
+
+**Sin probar todavía contra las APIs reales.** Lo primero tras desplegar:
+`monthly_releases("2026-10")` y `("2026-09")` y mirar `descartados`,
+`avisos` (sobre todo los calendarios: si dicen "0 discos leídos", su HTML no
+es como se supuso) y si stats.fm respeta `offset` (si `de_los_tuyos` sale
+por debajo de ~300, no lo hace).
+
+## Otros cambios del 3 nov.
+
+- `resolve` devuelve la `uri` de cada elemento, y `resolve`/`create_playlist`
+  aceptan "Artista – Título | spotify:album:…", la URI sola o un enlace de
+  open.spotify.com: una canción con URI no cuesta ninguna petición y un
+  disco una. La tarea de novedades debe crear la lista con URIs.
+- `status` y `/salud` dicen qué commit corre en Railway (variable
+  `RAILWAY_GIT_COMMIT_SHA`). El commit 12b6dc0 (resoluciones "res2") está en
+  main desde el 24 sep. y fue superado por 5e36bcc ("res3"): si en `status`
+  salen claves `res3:` en la caché, producción ya lleva ambos.
+- Arreglado: `_biblioteca` llamaba a `log.warning` sin que existiera `log`
+  en mcp_server, así que con Spotify frenado fallaba con NameError.
+
+## Pendiente (3 nov.)
+
+1. Desplegar y probar monthly_releases con datos reales (ver arriba).
+2. Reescribir el paso de "de dónde salen" de la tarea "Novedades del mes"
+   para usar monthly_releases y crear la lista con URIs.
+3. Railway: reconectar el repo (Settings → Source) para que cada push se
+   despliegue solo; hoy hay que lanzar "Deploy latest commit".
+4. Falsos "no está en Spotify" con signos (Godspeed You! Black Emperor).
+5. Huella: que ignore las listas borradas.
+6. Presupuesto de peticiones a Spotify por ejecución en el servidor.
+7. Sellos como fuente de candidatos de monthly_releases (segunda fase).
 
 Probado contra las APIs reales y funcionando: `status`, `taste_profile`,
 `my_library`, `my_playlists`, `check_known`, `explore_genre`, `explore_era`,
