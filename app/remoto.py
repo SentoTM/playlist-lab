@@ -89,7 +89,9 @@ def rutas_de_servicio(mcp) -> None:
         # volumen no está montado en esta carpeta y tus notas se perderían
         # en cada despliegue.
         return JSONResponse({"ok": True, "datos": str(DATOS),
-                             "datos_persistentes": os.path.ismount(DATOS)})
+                             "datos_persistentes": os.path.ismount(DATOS),
+                             # Railway rellena esta variable con el commit desplegado
+                             "commit": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7] or None})
 
     @mcp.custom_route("/admin/datos/{nombre}", methods=["PUT"])
     async def subir(request):

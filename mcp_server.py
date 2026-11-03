@@ -181,6 +181,8 @@ def status() -> dict:
         "spotify_bloqueado_segundos": bloqueo,
         "peticiones_a_spotify_en_esta_sesion": SpotifyClient.peticiones,
         "veces_limitado": SpotifyClient.limitaciones,
+        # qué código corre: en Railway, el commit desplegado (None en local)
+        "commit_desplegado": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7] or None,
         "cache_en_disco": cache.estado(),
         "warnings": avisos,
     }
