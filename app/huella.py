@@ -14,7 +14,7 @@ import datetime as dt
 import json
 import re
 import threading
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from . import historial, notes
@@ -41,17 +41,28 @@ def cargar_listas() -> dict:
         return {}
 
 
+def _elemento(r: dict) -> dict:
+    """Lo que se recuerda de cada pieza de una lista."""
+    if r.get("type") == "album":
+        e = {"tipo": "album", "artista": r.get("artist"),
+             "album": r.get("album"), "pistas": r.get("n_tracks")}
+        uris = set(r.get("_uris") or [])   # sin las que recortó ajustar_ediciones
+        nombres = [p["nombre"] for p in r.get("_pistas") or [] if p.get("uri") in uris]
+        if nombres:
+            e["lista_pistas"] = nombres
+    else:
+        e = {"tipo": "cancion", "artista": r.get("artist"),
+             "cancion": r.get("title"), "album": r.get("album")}
+    for k in ("papel", "origen", "conocido"):
+        if r.get(k):
+            e[k] = r[k]
+    return e
+
+
 def registrar_lista(nombre: str, resueltos: list[dict], url: str = "") -> None:
     """Guarda qué llevaba cada lista creada, con su fecha."""
     nombre = des_escapar(nombre)
-    elementos = []
-    for r in resueltos:
-        if r.get("type") == "album":
-            elementos.append({"tipo": "album", "artista": r.get("artist"),
-                              "album": r.get("album"), "pistas": r.get("n_tracks")})
-        else:
-            elementos.append({"tipo": "cancion", "artista": r.get("artist"),
-                              "cancion": r.get("title"), "album": r.get("album")})
+    elementos = [_elemento(r) for r in resueltos]
     with _lock:
         datos = cargar_listas()
         datos[nombre] = {"fecha": dt.date.today().isoformat(), "url": url,
@@ -82,17 +93,7 @@ def lista_editada(pid: str, nombre_viejo: str, nombre_nuevo: str,
         if not clave:
             return
         entrada = datos.pop(clave)
-        registrar_tmp = {"elementos": []}
-        for r in resueltos:
-            if r.get("type") == "album":
-                registrar_tmp["elementos"].append(
-                    {"tipo": "album", "artista": r.get("artist"),
-                     "album": r.get("album"), "pistas": r.get("n_tracks")})
-            else:
-                registrar_tmp["elementos"].append(
-                    {"tipo": "cancion", "artista": r.get("artist"),
-                     "cancion": r.get("title"), "album": r.get("album")})
-        entrada["elementos"] = entrada.get("elementos", []) + registrar_tmp["elementos"]
+        entrada["elementos"] = entrada.get("elementos", []) + [_elemento(r) for r in resueltos]
         datos[des_escapar(nombre_nuevo or clave)] = entrada
         _guardar_listas(datos)
 
@@ -216,6 +217,25 @@ def _ts(fecha: str) -> int:
     return int(dt.datetime.fromisoformat(fecha).timestamp())
 
 
+def _detalle_pistas(del_disco: list[dict], lista_pistas: list[str] | None) -> dict:
+    """Qué pistas repite más que el resto y cuáles no ha llegado a escuchar."""
+    if not del_disco:
+        return {}
+    veces, nombres = Counter(), {}
+    for s in del_disco:
+        veces[_k(s["track"])] += 1
+        nombres.setdefault(_k(s["track"]), s["track"])
+    salida = {}
+    minimo = min(veces.values())
+    repetidas = [(k, n) for k, n in veces.most_common(5) if n >= 2 and n > minimo]
+    if repetidas:
+        salida["pistas_repetidas"] = [f"{nombres[k]} ×{n}" for k, n in repetidas]
+    faltan = [t for t in lista_pistas or [] if not any(_mismo_album(t, k) for k in veces)]
+    if faltan:
+        salida["pistas_sin_escuchar"] = faltan[:8]
+    return salida
+
+
 def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
              hoy: dt.date | None = None) -> dict:
     hoy = hoy or dt.date.today()
@@ -238,6 +258,9 @@ def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
             guardo = [g for g in guardadas_por_artista.get(art, [])
                       if g["added_at"][:10] >= fecha]
             fila = {"artista": e.get("artista"), "tipo": e["tipo"]}
+            for k in ("papel", "origen", "conocido"):
+                if e.get(k):
+                    fila[k] = e[k]
             if e["tipo"] == "album":
                 del_disco = [s for s in suyas if _mismo_album(s["album"], e["album"])]
                 otros = [s for s in suyas if s not in del_disco]
@@ -245,6 +268,7 @@ def calcular(scrobbles: list[dict], guardadas: list[dict], listas: dict,
                 fila.update(album=e["album"], escuchas=len(del_disco),
                             pistas_distintas=len(distintas), pistas=e.get("pistas"))
                 guardo = [g for g in guardo if _mismo_album(g["album"], e["album"])] or guardo
+                fila.update(_detalle_pistas(del_disco, e.get("lista_pistas")))
             elif e["tipo"] == "cancion":
                 del_disco = [s for s in suyas if _k(s["track"]) == _k(e.get("cancion"))]
                 otros = [s for s in suyas if s not in del_disco]

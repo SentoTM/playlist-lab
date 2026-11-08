@@ -19,7 +19,7 @@ from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (atlas as atlas_mod, cache, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
+from app import (atlas as atlas_mod, balance, cache, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, novedades_mes, radar as radar_mod, recetas, seguimiento,
                  taste, vet)
 from app.clients.calendarios import CalendariosClient  # noqa: E402
@@ -622,6 +622,10 @@ puerta de entrada. Antes de cada tanda mira seeds y riega lo que prendió
 Antes de una tanda nueva, mira footprint: qué prendió de lo anterior
 (volvió, guardó, tiró del hilo). Sigue esos hilos; no insistas en lo que
 quedó sin tocar, pero tampoco lo tomes como un no.
+
+ETIQUETAS: en cada lista pasa a create_playlist etiquetas=… con el papel y
+el origen REAL de cada pieza. Sin ellas no se puede saber qué funciona. Antes
+de una tanda mira what_works y ajusta proporciones, nunca con poca muestra.
 
 RECETAS: mira el índice (va en 'recetas') y pide la tuya con recipes(tipo).
 Si no encaja ninguna, 'peticion_libre'. Lee los principios: las recetas son
@@ -1246,7 +1250,8 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
                     items: list[str] = [],
                     description: str = "Curada con Playlist Lab",
                     public: bool = False, para: str = "",
-                    semilla: str = "", hilo: str = "") -> dict:
+                    semilla: str = "", hilo: str = "",
+                    etiquetas: list[dict] = []) -> dict:
     """Crea la playlist en Spotify.
 
     `para`: si la lista es PARA OTRA PERSONA (su novia, un amigo…), pon su
@@ -1258,6 +1263,12 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
     items) como semilla hacia otro sitio, y `hilo` dice hacia dónde apunta
     ("del post-punk al afrobeat vía ESG"). La huella dirá si prende; si
     prende, en la siguiente tanda se tira de ese hilo (ver seeds).
+
+    `etiquetas`: una por pieza, para saber luego qué funciona (what_works):
+    {"pieza": <el texto de items>, "papel": ancla|contexto|salida|puente|
+    temazo|transicion|puerta_oscura, "origen": criterio|radar|prensa|kexp|
+    listenbrainz|similares|atlas|semilla|emergentes|otro, "conocido": true si
+    ya lo conocía}. Di el origen real: "criterio" si salió de tu cabeza.
 
     Igual que resolve: `items` para un orden exacto que mezcle discos
     ("album: Artista – Álbum") y canciones ("Artista – Canción"), o
@@ -1305,6 +1316,7 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
                      f"En la lista «{name}»", fila["album"])
         apuntados += 1
 
+    avisos_etiquetas = balance.aplicar_etiquetas(res["resolved"], etiquetas)
     historial.registrar([r["artist"] for r in res["resolved"] if r.get("artist")], name)
     huella_mod.registrar_lista(name, res["resolved"],
                                (created or {}).get("url", "") if isinstance(created, dict) else "")
@@ -1313,6 +1325,7 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
 
     return {"created": created, "total_minutes": res["total_minutes"],
             "semilla": plantada,
+            "avisos_etiquetas": avisos_etiquetas or None,
             "resolved": [r["input"] for r in res["resolved"]],
             "avisos": [f"{r['input']}: {r.get('aviso') or r.get('edicion')}"
                        for r in res["resolved"]
@@ -1509,6 +1522,23 @@ def footprint(lista: str = "", dias: int = 180) -> dict:
     return cache.recordar(
         f"huella:{norm(lista)}:{dias}", 1800,
         lambda: huella_mod.huella(lf, sp if sp.authenticated else None, lista, dias))
+
+
+@mcp.tool()
+def what_works(dias: int = 180) -> dict:
+    """QUÉ FUNCIONA: cruza el papel y el origen de cada pieza con su huella.
+
+    Dice, por origen (radar, prensa, tu criterio…), por papel (ancla,
+    salida, temazo…) y por tipo, qué porcentaje se tocó y cuánto prendió. Solo
+    cuenta lo creado con create_playlist(etiquetas=…) en listas que llegó a
+    abrir. Úsalo antes de una tanda para ajustar proporciones; con poca
+    muestra no saques conclusiones. Last.fm + 1 petición a Spotify.
+    """
+    sp, lf, _ = _clients()
+    _require_lastfm(lf)
+    h = cache.recordar(f"huella::{dias}", 1800,
+                       lambda: huella_mod.huella(lf, sp if sp.authenticated else None, "", dias))
+    return balance.resumir(h.get("listas") or {})
 
 
 # ---------- guía de curación ----------
