@@ -168,7 +168,10 @@ class LastfmClient:
             data = self._get("user.getRecentTracks", user=self.username,
                              limit=200, page=pagina, extended=0, **{"from": desde})
             bloque = data.get("recenttracks", {})
-            for t in bloque.get("track", []) or []:
+            pistas = bloque.get("track") or []
+            if isinstance(pistas, dict):   # con un solo resultado no llega una lista
+                pistas = [pistas]
+            for t in pistas:
                 if (t.get("@attr") or {}).get("nowplaying"):
                     continue
                 out.append({"artist": (t.get("artist") or {}).get("#text", ""),

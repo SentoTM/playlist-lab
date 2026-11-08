@@ -13,6 +13,7 @@ import json
 import threading
 from pathlib import Path
 
+from .library import separar_uri
 from .text import des_escapar, norm
 
 RUTA = Path(__file__).resolve().parent.parent / "datos" / "semillas.json"
@@ -34,9 +35,9 @@ def _guardar(datos: list[dict]) -> None:
 
 def plantar(lista: str, pieza: str, hilo: str) -> dict:
     """pieza: 'album: Artista – Álbum', 'Artista – Canción' o 'Artista'."""
-    p = pieza.strip()
-    es_album = p.lower().startswith(("album:", "álbum:"))
-    texto = p.split(":", 1)[1].strip() if es_album else p
+    p, uri = separar_uri(pieza.strip())
+    es_album = p.lower().startswith(("album:", "álbum:")) or bool(uri and uri[0] == "album")
+    texto = p.split(":", 1)[1].strip() if p.lower().startswith(("album:", "álbum:")) else p
     for sep in (" – ", " — ", " - "):
         if sep in texto:
             artista, obra = [x.strip() for x in texto.split(sep, 1)]
