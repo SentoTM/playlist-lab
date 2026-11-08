@@ -71,6 +71,21 @@ class WikidataClient:
             f"SELECT ?x ?xLabel WHERE {{ wd:{qid} wdt:P737 ?x . "
             'SERVICE wikibase:label { bd:serviceParam wikibase:language "en,es". } }')
 
+    def productores(self, qid: str, limite: int = 150) -> list[dict]:
+        """Quién ha producido sus discos: [{qid, nombre, obra}]."""
+        data = self._get(SPARQL, format="json", query=(
+            f"SELECT ?x ?xLabel ?obraLabel WHERE {{ ?obra wdt:P175 wd:{qid} ; wdt:P162 ?x . "
+            'SERVICE wikibase:label { bd:serviceParam wikibase:language "en,es". } } '
+            f"LIMIT {limite}"))
+        salida = []
+        for f in ((data or {}).get("results") or {}).get("bindings") or []:
+            nombre = (f.get("xLabel") or {}).get("value") or ""
+            obra = (f.get("obraLabel") or {}).get("value") or ""
+            if nombre and obra and not (nombre.startswith("Q") and nombre[1:].isdigit()):
+                salida.append({"qid": f["x"]["value"].rsplit("/", 1)[-1], "nombre": nombre,
+                               "obra": obra})
+        return salida
+
     def influyo_en(self, qid: str, limite: int = 60) -> list[dict]:
         """Quién bebe de él (P737 de otros apuntando a este artista)."""
         return self._sparql(

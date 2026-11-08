@@ -19,7 +19,7 @@ from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (atlas as atlas_mod, balance, cache, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
+from app import (atlas as atlas_mod, balance, cache, conexiones, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, novedades_mes, radar as radar_mod, recetas, seguimiento,
                  taste, vet)
 from app.clients.calendarios import CalendariosClient  # noqa: E402
@@ -626,6 +626,9 @@ quedó sin tocar, pero tampoco lo tomes como un no.
 ETIQUETAS: en cada lista pasa a create_playlist etiquetas=… con el papel y
 el origen REAL de cada pieza. Sin ellas no se puede saber qué funciona. Antes
 de una tanda mira what_works y ajusta proporciones, nunca con poca muestra.
+CONEXIONES: si vas a contar cómo se relacionan dos artistas (quién tocó con
+quién, un productor o un sello común), compruébalo con connect_artists y cita
+la fuente. Lo que no salga de ahí preséntalo como lectura tuya.
 
 RECETAS: mira el índice (va en 'recetas') y pide la tuya con recipes(tipo).
 Si no encaja ninguna, 'peticion_libre'. Lee los principios: las recetas son
@@ -1539,6 +1542,33 @@ def what_works(dias: int = 180) -> dict:
     h = cache.recordar(f"huella::{dias}", 1800,
                        lambda: huella_mod.huella(lf, sp if sp.authenticated else None, "", dias))
     return balance.resumir(h.get("listas") or {})
+
+
+@mcp.tool()
+def connect_artists(artist_a: str, artist_b: str, max_saltos: int = 4) -> dict:
+    """CONEXIONES COMPROBADAS entre dos artistas, cada dato con su fuente.
+
+    Caminos de personas (quién tocó con quién, MusicBrainz), influencias
+    declaradas y productores compartidos (Wikidata) y mismo sello.
+
+    Úsalo para contar relaciones en vez de tirar de memoria. Con homónimos,
+    pasa "Nombre (ciudad o género)" o su mbid: la respuesta avisa si hay
+    varios. Cada salto de más encarece mucho: 4 como máximo salvo buena razón.
+    Tarda hasta un minuto: si dice vuelve_a_llamar, repite con los mismos
+    parámetros. No gasta cuota de Spotify.
+    """
+    clave = f"conexion:{norm(artist_a)}:{norm(artist_b)}:{max_saltos}"
+    hay, valor = cache.obtener(clave, 30 * 86400)
+    if hay:
+        return valor
+
+    def calcular(paso):
+        res = conexiones.conectar(artist_a, artist_b, mb, wd, max_saltos, paso)
+        if (res.get("cobertura") or {}).get("busqueda_completa"):
+            cache.guardar(clave, res)
+        return res
+
+    return jobs.run_or_wait(clave, calcular)
 
 
 # ---------- guía de curación ----------

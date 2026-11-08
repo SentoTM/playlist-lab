@@ -59,6 +59,28 @@ class MusicbrainzClient:
             }
         return None
 
+    def buscar_artistas(self, nombre: str, limit: int = 8) -> list[dict]:
+        """Todos los candidatos con ese nombre, para distinguir homónimos."""
+        data = self._get("/artist", query='artist:"%s"' % nombre.replace('"', '\\"'), limit=limit)
+        salida = []
+        for a in data.get("artists", []):
+            span = a.get("life-span") or {}
+            salida.append({
+                "artist": a.get("name"), "mbid": a.get("id"), "score": a.get("score", 0),
+                "desambiguacion": a.get("disambiguation"), "tipo": a.get("type"),
+                "pais": a.get("country"),
+                "zona": ((a.get("begin-area") or {}).get("name")
+                         or (a.get("area") or {}).get("name")),
+                "desde": (span.get("begin") or "")[:4],
+                "tags": [t["name"] for t in (a.get("tags") or [])[:6]],
+            })
+        return salida
+
+    def relaciones(self, mbid: str) -> dict | None:
+        """Ficha de un artista con sus relaciones y enlaces; None si falla."""
+        data = self._get(f"/artist/{mbid}", inc="artist-rels url-rels")
+        return data if data.get("id") else None
+
     def find_release(self, artist: str, album: str) -> dict | None:
         """Álbum: primera publicación real (no la reedición), sello y formato."""
         data = self._get("/release-group",
@@ -328,7 +350,13 @@ class MusicbrainzClient:
     def sellos_de(self, artist: str, album: str = "") -> list[str]:
         """Con qué sellos ha publicado un artista: la puerta de entrada a una
         escena, porque los sellos agrupan por afinidad, no por algoritmo."""
-        consulta = f'artist:"{artist}"' + (f' AND release:"{album}"' if album else "")
+        return self._sellos(f'artist:"{artist}"' + (f' AND release:"{album}"' if album else ""))
+
+    def sellos_por_id(self, mbid: str) -> list[str]:
+        """Como sellos_de, pero sin confundir homónimos."""
+        return self._sellos(f"arid:{mbid}")
+
+    def _sellos(self, consulta: str) -> list[str]:
         # ojo: las búsquedas no admiten 'inc' (MusicBrainz responde 400); la
         # información de sello ya viene incluida en el resultado
         data = self._get("/release", query=consulta, limit=40)

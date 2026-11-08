@@ -7,7 +7,7 @@ _Última actualización: 3 de noviembre de 2026._
 ## Dónde estamos
 
 Playlist Lab ya no recomienda por reglas: es la capa de datos y ejecución para
-que una IA (Claude, vía MCP) cure la música. 53 herramientas y 3 prompts,
+que una IA (Claude, vía MCP) cure la música. 55 herramientas y 3 prompts,
 desplegado en Railway como conector remoto con login de GitHub. La web solo
 sirve para el login de Spotify y para ver el perfil.
 
@@ -93,6 +93,15 @@ por debajo de ~300, no lo hace).
   salen claves `res3:` en la caché, producción ya lleva ambos.
 - Arreglado: `_biblioteca` llamaba a `log.warning` sin que existiera `log`
   en mcp_server, así que con Spotify frenado fallaba con NameError.
+
+## Qué funciona y conexiones (9 nov.)
+
+- `create_playlist(etiquetas=…)` guarda papel y origen de cada pieza, y
+  `what_works` los cruza con la huella. Solo cuentan las listas abiertas. La
+  huella añade `pistas_repetidas` y `pistas_sin_escuchar` en los discos nuevos.
+- `connect_artists`: caminos de personas (MusicBrainz), influencias y
+  productores (Wikidata) y mismo sello, con la fuente de cada dato. Discogs
+  queda fuera: pide clave.
 
 ## Pendiente (3 nov.)
 
