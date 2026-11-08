@@ -514,5 +514,14 @@ class TestAceptacionReal(unittest.TestCase):
                 self.assertFalse([d for d in r.get("entran", []) if "remix" in d["titulo"].lower()])
 
 
+class TestDiscosCortos(unittest.TestCase):
+    def test_album_de_dos_canciones_es_un_single(self):
+        self.assertEqual(nm.filtro_ficha({"record_type": "album", "nb_tracks": 2, "duration": 240}),
+                         "disco de solo 2 canciones")
+
+    def test_pocas_pistas_largas_si_es_disco(self):
+        self.assertIsNone(nm.filtro_ficha({"record_type": "album", "nb_tracks": 3, "duration": 2400}))
+
+
 if __name__ == "__main__":
     unittest.main()

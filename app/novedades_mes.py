@@ -50,6 +50,7 @@ N_PRINCIPALES = 50           # artistas de los que se buscan vecinos
 VECINOS_POR_ARTISTA = 12
 MATCH_MINIMO = 0.35          # parecido en Last.fm (0-1) para contar como vecino
 MIN_CANCIONES_EP = 4
+MIN_SEGUNDOS_DISCO_CORTO = 20 * 60
 MAX_PETICIONES_MB = 120      # MusicBrainz va a 1 por segundo: tope por ejecución
 FANS_SOSPECHOSOS = 50        # un artista que escuchas mucho con tan pocos fans…
 ESCUCHAS_PARA_SOSPECHAR = 50
@@ -117,6 +118,11 @@ def filtro_ficha(ficha: dict, anteriores_fichas: list[dict] = ()) -> str | None:
         return "recopilatorio"
     if tipo == "ep" and canciones and canciones < MIN_CANCIONES_EP:
         return f"EP de {canciones} canciones"
+    # Deezer llama "album" a algún single de dos canciones. Con pocas pistas
+    # pero largas sí es un disco (drone, post-rock), de ahí mirar la duración.
+    if (tipo == "album" and canciones and canciones < MIN_CANCIONES_EP
+            and 0 < (ficha.get("duration") or 0) < MIN_SEGUNDOS_DISCO_CORTO):
+        return f"disco de solo {canciones} canciones"
     base = titulo_base(ficha.get("title") or "")
     for a in anteriores_fichas:
         if base and titulo_base(a.get("title") or "") == base:
