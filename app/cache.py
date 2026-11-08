@@ -75,9 +75,17 @@ def olvidar(clave: str) -> None:
                 pass
 
 
-def estado() -> dict:
+def estado(detalle: bool = False) -> dict:
+    """Resumen de la caché; con `detalle`, la antigüedad de cada entrada."""
     with _lock:
-        datos = _leer()
+        datos = dict(_leer())
     ahora = time.time()
-    return {clave: f"hace {round((ahora - e.get('t', 0)) / 60)} min"
-            for clave, e in datos.items()}
+    if detalle:
+        return {clave: f"hace {round((ahora - e.get('t', 0)) / 60)} min"
+                for clave, e in datos.items()}
+    por_tipo: dict[str, int] = {}
+    for clave in datos:
+        tipo = clave.split(":", 1)[0]
+        por_tipo[tipo] = por_tipo.get(tipo, 0) + 1
+    return {"entradas": len(datos),
+            "por_tipo": dict(sorted(por_tipo.items(), key=lambda x: -x[1])[:10])}

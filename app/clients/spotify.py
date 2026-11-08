@@ -11,6 +11,7 @@ import os
 import secrets
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 import httpx
@@ -46,8 +47,53 @@ class SpotifyRateLimited(RuntimeError):
     """Spotify pide una espera demasiado larga para aguantarla en caliente."""
 
 
+class SpotifyPresupuesto(SpotifyRateLimited):
+    """Nos frenamos nosotros, antes de que nos bloquee Spotify."""
+
+
 class SpotifyAuthError(Exception):
     pass
+
+
+class _Presupuesto:
+    """Tope de peticiones por ventana de tiempo, para toda la app.
+
+    El 3 de noviembre unas 45 llamadas seguidas a artist_releases costaron un
+    bloqueo de 24 h. Una ejecución normal cabe de sobra en la ventana. Las
+    escrituras nunca se frenan y buscar o leer un disco tiene un tramo
+    reservado: lo caro no debe impedir crear la lista que ya está pensada.
+    """
+    PRIORITARIAS = ("/search", "/albums/")
+
+    def __init__(self, limite: int = 120, reserva: int = 60, ventana: int = 1800):
+        self.limite, self.reserva, self.ventana = limite, reserva, ventana
+        self._marcas: deque[float] = deque()
+        self._lock = threading.Lock()
+
+    def _purgar(self, ahora: float) -> None:
+        while self._marcas and ahora - self._marcas[0] >= self.ventana:
+            self._marcas.popleft()
+
+    def gastar(self, metodo: str, ruta: str) -> None:
+        with self._lock:
+            ahora = time.time()
+            self._purgar(ahora)
+            tope = self.limite + (self.reserva if ruta.startswith(self.PRIORITARIAS) else 0)
+            if metodo == "GET" and len(self._marcas) >= tope:
+                libre = max(1, round((self._marcas[0] + self.ventana - ahora) / 60))
+                raise SpotifyPresupuesto(
+                    f"Spotify sigue limitando la app: se ha agotado el presupuesto propio "
+                    f"({len(self._marcas)} peticiones en {self.ventana // 60} min), puesto "
+                    f"para evitar un bloqueo. Queda libre en {libre} min como mucho. No "
+                    "reintentes: sigue con lo que no gasta Spotify.")
+            self._marcas.append(ahora)
+
+    def estado(self) -> dict:
+        with self._lock:
+            self._purgar(time.time())
+            return {"usadas": len(self._marcas), "limite": self.limite,
+                    "reserva_para_resolver": self.reserva,
+                    "ventana_minutos": self.ventana // 60}
 
 
 class _RateLimiter:
@@ -75,6 +121,7 @@ class SpotifyClient:
     peticiones = 0     # contador para saber cuánto cuesta cada operación
     limitaciones = 0   # cuántas veces nos han frenado con un 429
     bloqueado_hasta = 0.0  # marca de tiempo hasta la que Spotify nos frena
+    presupuesto = _Presupuesto(int(os.getenv("SPOTIFY_PRESUPUESTO") or 120))
 
     def __init__(self, client_id: str, redirect_uri: str):
         self.client_id = client_id
@@ -183,6 +230,7 @@ class SpotifyClient:
                 f"Spotify sigue limitando la app: quedan {restante} s "
                 f"({restante // 60} min). No se lanzan más peticiones hasta "
                 "entonces.")
+        self.presupuesto.gastar(method.upper(), path)
         if time.time() >= self._token.get("expires_at", 0):
             self._refresh()
         for attempt in range(3):

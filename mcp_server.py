@@ -149,8 +149,11 @@ def _cached(key: str, fn):
 # ---------- consulta ----------
 
 @mcp.tool()
-def status() -> dict:
-    """Estado: fuentes configuradas, sesión de Spotify y avisos."""
+def status(detalle: bool = False) -> dict:
+    """Estado: fuentes configuradas, sesión de Spotify y avisos.
+
+    `detalle=True` lista cada entrada de la caché (respuesta muy larga).
+    """
     sp, lf, sf = _clients()
     user = None
     if sp.authenticated:
@@ -183,7 +186,8 @@ def status() -> dict:
         "veces_limitado": SpotifyClient.limitaciones,
         # qué código corre: en Railway, el commit desplegado (None en local)
         "commit_desplegado": (os.getenv("RAILWAY_GIT_COMMIT_SHA") or "")[:7] or None,
-        "cache_en_disco": cache.estado(),
+        "presupuesto_spotify": SpotifyClient.presupuesto.estado(),
+        "cache_en_disco": cache.estado(detalle),
         "warnings": avisos,
     }
 
