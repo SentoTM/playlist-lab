@@ -105,6 +105,9 @@ por debajo de ~300, no lo hace).
 5. Huella: que ignore las listas borradas.
 6. Presupuesto de peticiones a Spotify por ejecución en el servidor.
 7. Sellos como fuente de candidatos de monthly_releases (segunda fase).
+8. Bandcamp Daily: desde el 8 nov. responde con un desafío antibots (200, ~3 KB)
+   a estas peticiones, así que da "0 discos leídos". Cuando sí sirve la página,
+   lo publicado a nombre de un sello se descarta porque no dice el artista.
 
 Probado contra las APIs reales y funcionando: `status`, `taste_profile`,
 `my_library`, `my_playlists`, `check_known`, `explore_genre`, `explore_era`,

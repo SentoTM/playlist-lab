@@ -50,6 +50,13 @@ _ITEM = re.compile(r"^\s*[•·\-\*]?\s*(?P<a>[^–—:\n]{1,60}?)\s+[-–—]\s
 _ITEM_DOS_PUNTOS = re.compile(r"^\s*(?P<a>[^:\n]{1,60}?):\s+[«“\"](?P<t>[^»”\"]{1,120})[»”\"]")
 _BAND = re.compile(r'"band_name"\s*:\s*"(?P<a>[^"]{1,80})"')
 _TITULO_JSON = re.compile(r'"(?:album_title|title)"\s*:\s*"(?P<t>[^"]{1,150})"')
+# Lo que tiene forma de "Artista - Título" sin ser un disco: el título del
+# propio artículo y los titulares de la barra lateral ("[Entrevista] X - …",
+# "Grupo - Disco | Crítica").
+_NO_ES_ARTISTA = re.compile(r"^\W*\[|^lanzamientos de discos", re.I)
+_NO_ES_TITULO = re.compile(r"\|\s*(cr[ií]tica|rese[nñ]a|review|entrevista)\s*$", re.I)
+# En Bandcamp, la cuenta que publica puede ser el sello y no el grupo.
+_SELLO = re.compile(r"\b(records|recordings)\s*$", re.I)
 
 
 def html_a_lineas(html: str) -> list[str]:
@@ -70,6 +77,8 @@ def _item(linea: str) -> tuple[str, str] | None:
         return None
     a, t = _limpio(m.group("a")), _limpio(m.group("t"))
     if len(a) < 2 or len(a.split()) > 7 or not t or _FECHA.search(a):
+        return None
+    if _NO_ES_ARTISTA.search(a) or _NO_ES_TITULO.search(t):
         return None
     return a, t
 
@@ -125,7 +134,11 @@ def parsear_generico(html: str, mes: str) -> list[dict]:
 
 def parsear_bandcamp(html: str) -> list[dict]:
     """Bandcamp Daily: los reproductores incrustados llevan band_name y title
-    en JSON; si no aparecen, se prueba con líneas "Artista – Título"."""
+    en JSON; si no aparecen, se prueba con líneas "Artista – Título".
+
+    Se descarta lo publicado a nombre de un sello ("Total Punk Records"): ahí
+    band_name no es el artista, y buscarlo en Deezer no llevaría al disco.
+    """
     texto = html_mod.unescape(html or "")
     out, vistos = [], set()
     for b in _BAND.finditer(texto):
@@ -134,6 +147,8 @@ def parsear_bandcamp(html: str) -> list[dict]:
         if not t:
             continue
         par = (b.group("a").strip(), t.group("t").strip())
+        if _SELLO.search(par[0]):
+            continue
         if par not in vistos:
             vistos.add(par)
             out.append({"artista": par[0], "titulo": par[1], "fecha": None})
@@ -141,7 +156,7 @@ def parsear_bandcamp(html: str) -> list[dict]:
         return out
     for linea in html_a_lineas(html):
         par = _item(linea)
-        if par and par not in vistos:
+        if par and not _SELLO.search(par[0]) and par not in vistos:
             vistos.add(par)
             out.append({"artista": par[0], "titulo": par[1], "fecha": None})
     return out
@@ -153,10 +168,14 @@ class CalendariosClient:
                                           follow_redirects=True)
         self.peticiones = 0
 
-    def _texto(self, url: str) -> str:
+    def _texto(self, url: str, exigir_en_url: str | None = None) -> str:
+        """HTML de la página. Con `exigir_en_url`, falla si ha redirigido a otra:
+        una portada también tiene líneas "X - Y", y se leerían como discos."""
         self.peticiones += 1
         resp = self._http.get(url)
         resp.raise_for_status()
+        if exigir_en_url and exigir_en_url not in str(resp.url):
+            raise RuntimeError(f"{url} redirige a {resp.url}")
         return resp.text
 
     def _rss(self, url: str) -> list[tuple[str, str]]:
@@ -192,10 +211,12 @@ class CalendariosClient:
         urls = [enlace for titulo, enlace in self._rss("https://www.binaural.es/feed/")
                 if buscado.search(titulo)]
         if not urls:
-            urls = [f"https://www.binaural.es/lanzamientos-de-discos-en-{nombre}-de-{anio}/"]
+            urls = ["https://www.binaural.es/lanzamientos/"
+                    f"lanzamientos-de-discos-en-{nombre}-de-{anio}/"]
         out = []
         for url in urls[:2]:
-            out.extend(parsear_generico(self._texto(url), mes))
+            html = self._texto(url, exigir_en_url=f"{nombre}-de-{anio}")
+            out.extend(parsear_generico(html, mes))
         return out
 
     def bandcamp(self, mes: str) -> list[dict]:

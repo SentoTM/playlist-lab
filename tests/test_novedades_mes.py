@@ -16,7 +16,8 @@ import httpx
 
 from app import cache, novedades_mes as nm
 from app.clients import musicbrainz as mb_mod
-from app.clients.calendarios import parsear_bandcamp, parsear_dod, parsear_generico
+from app.clients.calendarios import (CalendariosClient, parsear_bandcamp, parsear_dod,
+                                     parsear_generico)
 from app.clients.deezer import DeezerClient, DeezerError, _Almacen, _Ritmo
 from app.text import clave, titulo_base
 
@@ -310,6 +311,49 @@ class TestCalendarios(unittest.TestCase):
         html = "<p>23 de octubre</p><p>La 126 – NADA PUEDE HACERNOS MAL</p>"
         f = parsear_generico(html, "2026-10")[0]
         self.assertEqual((f["artista"], f["fecha"]), ("La 126", "2026-10-23"))
+
+    def test_generico_ignora_lo_que_no_son_discos(self):
+        html = ("<h1>Lanzamientos de discos en... octubre de 2026 - Binaural</h1>"
+                "<p>16 de octubre</p><p>Fontaines D.C. - Dopamine Chamber</p>"
+                "<p>´[Entrevista] Queens Of The Stone Age - En 2024 no teníamos ni idea</p>"
+                "<p>Fontaines DC - Dopamine Chamber | Crítica</p>")
+        self.assertEqual([(f["artista"], f["titulo"]) for f in parsear_generico(html, "2026-10")],
+                         [("Fontaines D.C.", "Dopamine Chamber")])
+
+    def test_bandcamp_descarta_sellos(self):
+        html = ('<bcaudioplayer data-player-infos="[{&quot;band_name&quot;:&quot;Total Punk '
+                'Records&quot;,&quot;title&quot;:&quot;Real Simple&quot;}]"></bcaudioplayer>'
+                '<bcaudioplayer data-player-infos="[{&quot;band_name&quot;:&quot;Water Damage'
+                '&quot;,&quot;title&quot;:&quot;Repair&quot;}]"></bcaudioplayer>')
+        self.assertEqual([f["artista"] for f in parsear_bandcamp(html)], ["Water Damage"])
+
+    def _binaural(self, responder):
+        http = httpx.Client(transport=httpx.MockTransport(responder), follow_redirects=True)
+        return CalendariosClient(http=http).binaural("2026-10")
+
+    def test_binaural_va_al_articulo_del_mes(self):
+        vistas = []
+
+        def responder(req):
+            vistas.append(req.url.path)
+            if req.url.path == "/feed/":
+                return httpx.Response(200, text="<rss><channel></channel></rss>")
+            return httpx.Response(200, text="<p>2 de octubre</p><p>Blossoms - Songs</p>")
+
+        filas = self._binaural(responder)
+        self.assertEqual(vistas[-1], "/lanzamientos/lanzamientos-de-discos-en-octubre-de-2026/")
+        self.assertEqual(filas[0]["artista"], "Blossoms")
+
+    def test_binaural_no_lee_la_portada_si_redirige(self):
+        def responder(req):
+            if req.url.path == "/feed/":
+                return httpx.Response(200, text="<rss><channel></channel></rss>")
+            if req.url.path == "/":
+                return httpx.Response(200, text="<p>Un titular - cualquiera</p>")
+            return httpx.Response(301, headers={"Location": "https://www.binaural.es/"})
+
+        with self.assertRaisesRegex(RuntimeError, "redirige"):
+            self._binaural(responder)
 
 
 class TestPuntuacion(unittest.TestCase):
