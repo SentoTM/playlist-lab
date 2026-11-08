@@ -19,7 +19,7 @@ from fastmcp import FastMCP
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-from app import (atlas as atlas_mod, balance, cache, conexiones, discovery, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
+from app import (atlas as atlas_mod, balance, cache, conexiones, discovery, homonimos, dossier, editar as editar_mod, semillas as semillas_mod, setlists as setlists_mod, explore, genealogy, historial, huella as huella_mod, jobs,  # noqa: E402
                  library, notes, novedades_mes, radar as radar_mod, recetas, seguimiento,
                  taste, vet)
 from app.clients.calendarios import CalendariosClient  # noqa: E402
@@ -1216,8 +1216,15 @@ def _original(artista: str, album: str):
 
 def _resolver(sp, tracks=(), albums=(), items=()) -> dict:
     """Resuelve en Spotify y comprueba las ediciones con MusicBrainz."""
-    res = (library.resolve_ordered(sp, list(items)) if items
-           else library.resolve_items(sp, list(tracks), list(albums)))
+    items, orig_i, fuera_i = homonimos.preparar(sp, list(items), "", mb)
+    tracks, orig_t, fuera_t = homonimos.preparar(sp, list(tracks), "track", mb)
+    albums, orig_a, fuera_a = homonimos.preparar(sp, list(albums), "album", mb)
+    res = (library.resolve_ordered(sp, items) if items
+           else library.resolve_items(sp, tracks, albums))
+    originales = {**orig_i, **orig_t, **orig_a}
+    for fila in res["resolved"]:
+        fila["input"] = originales.get(fila["input"], fila["input"])
+    res["unresolved"] = res["unresolved"] + fuera_i + fuera_t + fuera_a
     return library.ajustar_ediciones(res, _original)
 
 
@@ -1230,6 +1237,10 @@ def resolve(tracks: list[str] = [], albums: list[str] = [],
     - `items`, en el orden exacto de la lista: "Artista – Canción" o
       "album: Artista – Álbum". Úsala si mezclas discos y canciones.
     - `tracks` y `albums` por separado (las canciones van delante).
+
+    Homónimos: si sale `aviso_homonimo`, o ya sabes que hay dos grupos con ese
+    nombre, escribe "Artista (ciudad o género) – Título": elige al artista
+    exacto por MusicBrainz o deja la pieza sin resolver si no puede asegurarlo.
 
     Cada elemento resuelto trae su `uri`. Pásale a create_playlist esas
     URIs ("Artista – Título | spotify:album:…", o la URI sola) y NO se vuelve
@@ -1336,7 +1347,9 @@ def create_playlist(name: str, tracks: list[str] = [], albums: list[str] = [],
             "resolved": [r["input"] for r in res["resolved"]],
             "avisos": [f"{r['input']}: {r.get('aviso') or r.get('edicion')}"
                        for r in res["resolved"]
-                       if r.get("aviso") or (r.get("edicion") or "").startswith("recortada")] or None,
+                       if r.get("aviso") or (r.get("edicion") or "").startswith("recortada")]
+                      + [f"{r['input']}: {r['aviso_homonimo']}" for r in res["resolved"]
+                         if r.get("aviso_homonimo")] or None,
             "unresolved": res["unresolved"],
             "apuntados_como_pendiente": apuntados,
             "huella": ("Registrada: footprint seguirá qué escucha de esta lista "

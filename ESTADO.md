@@ -103,16 +103,21 @@ por debajo de ~300, no lo hace).
   productores (Wikidata) y mismo sello, con la fuente de cada dato. Discogs
   queda fuera: pide clave.
 
+## Protecciones de Spotify y homónimos (9 nov.)
+
+- Presupuesto en el servidor: 120 peticiones cada 30 min (`SPOTIFY_PRESUPUESTO`),
+  60 más para buscar y leer discos, y sin freno para escribir. Es una estimación
+  para no repetir el bloqueo del 3 nov.: ajustar si frena ejecuciones normales.
+- `resolve` admite "Artista (ciudad o género) – Título" y avisa de homónimos.
+- `status` resume la caché; `status(detalle=True)` la lista entera.
+- La tarea "Novedades del mes" ya usa `monthly_releases`.
+
 ## Pendiente (3 nov.)
 
-1. Desplegar y probar monthly_releases con datos reales (ver arriba).
-2. Reescribir el paso de "de dónde salen" de la tarea "Novedades del mes"
-   para usar monthly_releases y crear la lista con URIs.
 3. Railway: reconectar el repo (Settings → Source) para que cada push se
    despliegue solo; hoy hay que lanzar "Deploy latest commit".
 4. Falsos "no está en Spotify" con signos (Godspeed You! Black Emperor).
 5. Huella: que ignore las listas borradas.
-6. Presupuesto de peticiones a Spotify por ejecución en el servidor.
 7. Sellos como fuente de candidatos de monthly_releases (segunda fase).
 8. Bandcamp Daily: desde el 8 nov. responde con un desafío antibots (200, ~3 KB)
    a estas peticiones, así que da "0 discos leídos". Cuando sí sirve la página,

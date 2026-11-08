@@ -126,6 +126,17 @@ def find_album(sp: SpotifyClient, artist: str, album: str) -> dict | None:
     good = _candidatos_album(sp, artist, album)
     if not good:
         return None
+    elegido = mejor_album(good, album)
+    buscado = _plano(artist)
+    ids = {x.get("id") for a in good if _plano(norm(a.get("name", ""))) == _plano(norm(album))
+           for x in a.get("artists", []) if _plano(x.get("name", "")) == buscado}
+    if len(ids) > 1:
+        elegido["_homonimos"] = len(ids)
+    return elegido
+
+
+def mejor_album(good: list[dict], album: str) -> dict:
+    """De varios candidatos, la edición original (ver find_album)."""
     pide_edicion = bool(_EDICION.search(album))
 
     def clave(a: dict):
@@ -141,6 +152,22 @@ def find_album(sp: SpotifyClient, artist: str, album: str) -> dict | None:
     elegido = dict(good[0])
     elegido["_alternativas"] = len(good) - 1
     return elegido
+
+
+def _detalle_elegido(sp: SpotifyClient, elegido: dict) -> dict:
+    """album_details más el aviso de que puede ser de un homónimo."""
+    detalle = album_details(sp, elegido["id"])
+    if elegido.get("_homonimos"):
+        detalle["homonimos"] = elegido["_homonimos"]
+    return detalle
+
+
+def _aviso_homonimo(fila: dict, dato: dict, artista: str) -> None:
+    if dato.get("homonimos"):
+        fila["aviso_homonimo"] = (
+            f"Hay {dato['homonimos']} artistas llamados '{artista}' con este título en "
+            "Spotify: puede ser el de otro grupo. Compruébalo o usa "
+            "'Artista (ciudad o género) – Título'.")
 
 
 def album_details(sp: SpotifyClient, album_id: str) -> dict:
@@ -265,7 +292,7 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
             return item, None, str(e)
         def buscar():
             a = find_album(sp, artist, album)
-            return album_details(sp, a["id"]) if a else None
+            return _detalle_elegido(sp, a) if a else None
         return item, _memo("a:" + item, buscar), None
 
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -291,6 +318,7 @@ def resolve_items(sp: SpotifyClient, tracks: list[str], albums: list[str]) -> di
                 fila["aviso"] = (f"Dura {d['minutes']} min: puede ser una edición "
                                  "ampliada o un recopilatorio. Comprueba si es "
                                  "el disco original antes de crear la lista.")
+            _aviso_homonimo(fila, d, d["artist"])
             fila["_uris"], fila["_pistas"] = d["uris"], d.get("pistas")
             resolved.append(fila)
             uris.extend(d["uris"])
@@ -325,7 +353,7 @@ def resolve_ordered(sp: SpotifyClient, items: list[str]) -> dict:
         if es_album:
             def buscar():
                 a = find_album(sp, artista, titulo)
-                return album_details(sp, a["id"]) if a else None
+                return _detalle_elegido(sp, a) if a else None
             return item, "album", _memo(f"a:{artista} – {titulo}", buscar), None
         return item, "track", _memo(f"t:{artista} – {titulo}",
                                     lambda: find_track(sp, artista, titulo)), None
@@ -347,6 +375,7 @@ def resolve_ordered(sp: SpotifyClient, items: list[str]) -> dict:
             if dato["minutes"] > MINUTOS_SOSPECHOSOS:
                 fila["aviso"] = (f"Dura {dato['minutes']} min: puede ser una "
                                  "edición ampliada o un recopilatorio.")
+            _aviso_homonimo(fila, dato, dato["artist"])
             fila["_uris"], fila["_pistas"] = dato["uris"], dato.get("pistas")
             resolved.append(fila)
             uris.extend(dato["uris"])

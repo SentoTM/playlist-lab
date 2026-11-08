@@ -177,7 +177,7 @@ def _qid(artista: dict) -> str:
     return ""
 
 
-def _spotify(artista: dict) -> str | None:
+def spotify_de(artista: dict) -> str | None:
     for rel in artista.get("relations") or []:
         recurso = (rel.get("url") or {}).get("resource") or ""
         if "open.spotify.com/artist/" in recurso:
@@ -257,7 +257,7 @@ def conectar(ref_a: str, ref_b: str, mb: MusicbrainzClient, wd: WikidataClient,
                               max(1, min(max_saltos, 6)), paso=paso)
     da, db = datos(a["mbid"]) or {}, datos(b["mbid"]) or {}
     a["artist"], b["artist"] = a["artist"] or da.get("name"), b["artist"] or db.get("name")
-    a["spotify"], b["spotify"] = _spotify(da), _spotify(db)
+    a["spotify"], b["spotify"] = spotify_de(da), spotify_de(db)
     qa, qb = _qid(da), _qid(db)
     a["wikidata"], b["wikidata"] = qa or None, qb or None
 
