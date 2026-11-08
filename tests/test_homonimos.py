@@ -19,16 +19,30 @@ class FakeMB:
                 {"artist": "Embrace", "mbid": DC, "score": 100,
                  "desambiguacion": "US hardcore band", "zona": "Washington, D.C.", "tags": []}]
 
+    def fecha_disco(self, mbid, titulo):
+        return "1987-01-01" if mbid == DC else "2025-03-01"
+
     def relaciones(self, mbid):
         rels = [{"type": "free streaming",
                  "url": {"resource": f"https://open.spotify.com/artist/sp{mbid}"}}]
         return {"id": mbid, "name": "Embrace", "relations": rels if self.con_enlace else []}
 
 
+def candidato(id_, anio, artista):
+    return {"id": id_, "name": "Embrace", "album_type": "album", "total_tracks": 16,
+            "release_date": anio, "artists": [{"id": artista, "name": "Embrace"}]}
+
+
 class FakeSpotify:
     def artist_albums(self, artista_id, limit=20, artist_name=None, max_paginas=4):
         return [{"id": f"disco-{artista_id}", "name": "Embrace", "album_type": "album",
                  "total_tracks": 16, "release_date": "1987"}]
+
+    def __init__(self, discos=()):
+        self.discos = list(discos)
+
+    def search_album(self, q, limit=10):
+        return self.discos
 
     def search_track(self, consulta, limit=3):
         return [{"id": "t-uk", "name": "Dance of Days", "artists": [{"id": f"sp{UK}"}]},
@@ -57,6 +71,25 @@ class TestPreparar(ConCache):
         lista, _, _ = homonimos.preparar(FakeSpotify(), ["Embrace (hardcore) – Dance of Days"],
                                          "", FakeMB())
         self.assertTrue(lista[0].endswith("spotify:track:t-dc"))
+
+    def test_sin_enlace_elige_por_anio(self):
+        sp = FakeSpotify([candidato("uk", "2025-01-01", "a1"), candidato("dc", "1987", "a2")])
+        lista, _, fuera = homonimos.preparar(sp, ["album: Embrace (Washington) – Embrace"],
+                                             "", FakeMB(con_enlace=False))
+        self.assertEqual(lista, ["Embrace – Embrace | spotify:album:dc"])
+        self.assertEqual(fuera, [])
+
+    def test_sin_enlace_y_dos_artistas_ese_anio_no_elige(self):
+        sp = FakeSpotify([candidato("x", "1987", "a1"), candidato("y", "1987", "a2")])
+        lista, _, fuera = homonimos.preparar(sp, ["album: Embrace (Washington) – Embrace"],
+                                             "", FakeMB(con_enlace=False))
+        self.assertEqual(lista, [])
+        self.assertEqual(len(fuera), 1)
+
+    def test_cancion_sin_enlace_no_elige(self):
+        lista, _, fuera = homonimos.preparar(FakeSpotify(), ["Embrace (Washington) – Dance of Days"],
+                                             "", FakeMB(con_enlace=False))
+        self.assertEqual((lista, fuera[0]["type"]), ([], "track"))
 
     def test_sin_enlace_queda_sin_resolver(self):
         lista, _, fuera = homonimos.preparar(FakeSpotify(), ["album: Embrace (Washington) – Embrace"],

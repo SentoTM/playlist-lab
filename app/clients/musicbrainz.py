@@ -81,6 +81,16 @@ class MusicbrainzClient:
         data = self._get(f"/artist/{mbid}", inc="artist-rels url-rels")
         return data if data.get("id") else None
 
+    def fecha_disco(self, mbid: str, titulo: str) -> str | None:
+        """Primera edición del disco de ESE artista, sin confundir homónimos."""
+        from ..text import clave
+        consulta = 'releasegroup:"%s" AND arid:%s' % (titulo.replace('"', '\\"'), mbid)
+        fechas = [rg.get("first-release-date") or ""
+                  for rg in self._get("/release-group", query=consulta, limit=10)
+                  .get("release-groups", []) if clave(rg.get("title") or "") == clave(titulo)]
+        fechas = sorted(f for f in fechas if f)
+        return fechas[0] if fechas else None
+
     def find_release(self, artist: str, album: str) -> dict | None:
         """Álbum: primera publicación real (no la reedición), sello y formato."""
         data = self._get("/release-group",
